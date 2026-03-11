@@ -5,6 +5,11 @@ Like a packet sniffer for networks, sniff detects what's in your dev environment
 through passive observation - no side effects, no changes, just answers.
 """
 
+# -- Automatic Environment Setup (NEW in 3.0.0) --
+from sniff.envspec import EnvironmentSpec, CondaSpec, ToolSpec, find_envspec
+from sniff.activation import EnvironmentActivator, ActivationResult
+from sniff.install import BinaryInstaller, InstallResult
+
 # -- Detection & Platform --
 from sniff.detect import PlatformDetector, PlatformInfo
 from sniff.deps import DependencyChecker, DependencySpec, DependencyResult
@@ -183,6 +188,15 @@ from sniff.cli.context import CLIContext
 __version__ = "3.0.0"
 
 __all__ = [
+    # Automatic Environment Setup (NEW in 3.0.0)
+    "EnvironmentSpec",
+    "CondaSpec",
+    "ToolSpec",
+    "find_envspec",
+    "EnvironmentActivator",
+    "ActivationResult",
+    "BinaryInstaller",
+    "InstallResult",
     # Detection & Platform
     "PlatformDetector",
     "PlatformInfo",

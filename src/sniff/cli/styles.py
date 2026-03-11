@@ -140,19 +140,17 @@ def print_debug(msg: str) -> None:
 
 
 def print_header(title: str, subtitle: str | None = None) -> None:
-    """Print a header panel with a heavy border.
+    """Print a header with minimal token usage.
 
     Args:
         title: The header title text.
         subtitle: Optional subtitle displayed below the title in dim style.
     """
-    from rich import box
-    from rich.panel import Panel
-
-    text = f"[{Colors.HEADER}]{title}[/{Colors.HEADER}]"
+    console.print()
+    console.print(f"[{Colors.HEADER}]{title}[/{Colors.HEADER}]")
     if subtitle:
-        text += f"\n[dim]{subtitle}[/dim]"
-    console.print(Panel(text, box=box.HEAVY, border_style="cyan"))
+        console.print(f"[dim]{subtitle}[/dim]")
+    console.print(f"[dim]{'─' * 40}[/dim]")
 
 
 def print_step(msg: str, step_num: int | None = None, total: int | None = None) -> None:
@@ -188,7 +186,7 @@ def print_blank() -> None:
 
 
 def print_table(title: str, headers: list[str], rows: list[list[str]]) -> None:
-    """Print a formatted Rich table with rounded borders.
+    """Print a formatted Rich table with minimal borders.
 
     Args:
         title: Table title displayed above the table.
@@ -198,7 +196,7 @@ def print_table(title: str, headers: list[str], rows: list[list[str]]) -> None:
     from rich import box
     from rich.table import Table
 
-    table = Table(title=title, box=box.ROUNDED, header_style="bold cyan")
+    table = Table(title=title, box=box.SIMPLE, header_style="bold cyan", show_edge=False)
     for header in headers:
         table.add_column(header)
     for row in rows:
