@@ -1,0 +1,311 @@
+# .sniff.toml Specification
+
+**Version:** 1.0
+
+Canonical reference for `.sniff.toml`, the declarative environment configuration file read by sniff. One file describes your entire project environment -- conda, tools, paths, variables -- and sniff handles detection, activation, and wrapper generation.
+
+---
+
+## Design Principles
+
+1. **Declarative** -- describe the desired state, not how to achieve it
+2. **Reproducible** -- same config produces same environment on any machine
+3. **Language-agnostic** -- works for Python, Rust, C++, Node, Go, Java, or any mix
+4. **Minimal by default** -- only `[project].name` is required; add sections as needed
+5. **Expansion-friendly** -- variable substitution for paths and values
+
+---
+
+## Variable Expansion
+
+All string values support `{variable}` expansion at runtime.
+
+### Built-in Variables
+
+| Variable | Resolves to | Example |
+|----------|-------------|---------|
+| `{project}` | Project root (directory containing `.sniff.toml`) | `/home/user/projects/myapp` |
+| `{conda}` | `$CONDA_PREFIX` for the resolved conda environment | `/home/user/miniforge3/envs/myapp` |
+| `{home}` | User home directory (`$HOME`) | `/home/user` |
+
+### Rules
+
+- Variables are resolved at **runtime**, not at parse time.
+- An undefined variable with no default causes an error.
+- Recursive expansion is not supported (prevents infinite loops).
+
+### Examples
+
+```toml
+MLIR_DIR = "{conda}/lib/cmake/mlir"
+# -> /home/user/miniforge3/envs/myapp/lib/cmake/mlir
+
+DATA_DIR = "{project}/data"
+# -> /home/user/projects/myapp/data
+
+CONFIG   = "{home}/.config/myapp"
+# -> /home/user/.config/myapp
+```
+
+---
+
+## Section Reference
+
+### `[project]` -- Project Identity (required)
+
+Every `.sniff.toml` must have a `[project]` section with at least a `name`.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | **yes** | Project name. Used as the default conda env name and in generated wrappers. |
+| `description` | string | no | Human-readable project description. |
+
+```toml
+[project]
+name = "myapp"
+description = "REST API server"
+```
+
+**Sniff module:** `sniff.envspec.EnvironmentSpec`
+
+---
+
+### `[conda]` -- Conda / Mamba Environment
+
+Declares the conda environment to detect and activate.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | no | Environment name (defaults to `project.name`). |
+| `file` | string | no | Path to `environment.yaml` for creation. |
+
+```toml
+[conda]
+name = "myapp"
+file = "environment.yaml"
+```
+
+When present, `sniff activate` and `sniff wrap` resolve the conda prefix automatically using `CondaDetector.find_environment()`.
+
+**Sniff module:** `sniff.conda.CondaDetector`
+
+---
+
+### `[tools]` -- Required CLI Tools
+
+Specifies command-line tools your project depends on. Each key is a logical tool name; the value is either a **string** (shorthand) or a **dict** (full specification).
+
+#### String form (command name only)
+
+```toml
+[tools]
+make = "make"
+```
+
+Equivalent to `{ command = "make" }`.
+
+#### Dict form (full specification)
+
+```toml
+[tools]
+python = { command = "python", version = ">=3.10" }
+cargo  = { command = "cargo", version = ">=1.70", optional = true }
+```
+
+Or as a sub-table:
+
+```toml
+[tools.cmake]
+command = "cmake"
+version = ">=3.20"
+optional = false
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `command` | string | yes | CLI command to check (looked up via `which`). |
+| `version` | string | no | Semver constraint (e.g., `>=3.20`, `>=1.70`). |
+| `optional` | bool | no | If `true`, a missing tool is a warning, not an error. Default: `false`. |
+
+**Sniff module:** `sniff.deps.DependencyChecker`, `sniff.version.VersionSpec`
+
+---
+
+### `[env]` -- Environment Variables
+
+Key-value pairs set during activation and baked into wrappers. Values support variable expansion.
+
+```toml
+[env]
+MLIR_DIR = "{conda}/lib/cmake/mlir"
+LLVM_DIR = "{conda}/lib/cmake/llvm"
+PYTHONPATH = "{project}/src"
+NODE_ENV = "development"
+```
+
+All keys are exported as environment variables (`export KEY="value"` in generated scripts).
+
+**Sniff module:** `sniff.toolchain.EnvVarBuilder`
+
+---
+
+### `[paths]` -- PATH Prepends
+
+Lists of directories to prepend to `PATH` during activation and in wrappers.
+
+```toml
+[paths]
+bin = ["{project}/bin", "{project}/target/release", "{conda}/bin"]
+```
+
+Each key maps to a list of directories. The `bin` key is treated specially: its entries are prepended to `PATH`. Other keys are available for custom use by downstream tools.
+
+**Sniff module:** `sniff.activation.EnvironmentActivator`
+
+---
+
+## Validation Rules
+
+1. `[project].name` is **required**. Parsing fails without it.
+2. Tool commands are validated with `shutil.which()`. Missing required tools cause activation to fail.
+3. Version constraints use semver syntax: `>=`, `>`, `<=`, `<`, `=`, and bare versions.
+4. Undefined variables (`{conda}` when no conda env exists) raise an error.
+5. TOML syntax errors produce a clear `ConfigError` with file path and details.
+
+---
+
+## Sniff Module Mapping
+
+| `.sniff.toml` Section | Sniff Module | Primary Classes |
+|-----------------------|--------------|-----------------|
+| `[project]` | `sniff.envspec` | `EnvironmentSpec` |
+| `[conda]` | `sniff.conda` | `CondaDetector`, `CondaEnvironment` |
+| `[tools]` | `sniff.deps`, `sniff.version` | `DependencyChecker`, `VersionSpec` |
+| `[env]` | `sniff.toolchain` | `EnvVarBuilder` |
+| `[paths]` | `sniff.activation` | `EnvironmentActivator` |
+| *(activation)* | `sniff.activation` | `EnvironmentActivator` |
+| *(wrappers)* | `sniff.wrapper` | `WrapperGenerator` |
+
+---
+
+## Complete Examples
+
+### Minimal
+
+```toml
+[project]
+name = "hello"
+```
+
+### Python + Conda
+
+```toml
+[project]
+name = "ml-pipeline"
+
+[conda]
+name = "ml-pipeline"
+file = "environment.yaml"
+
+[tools]
+python = { command = "python", version = ">=3.10" }
+jupyter = { command = "jupyter" }
+
+[env]
+PYTHONPATH = "{project}/src"
+```
+
+### Rust
+
+```toml
+[project]
+name = "my-rust-app"
+
+[tools]
+cargo = { command = "cargo", version = ">=1.70" }
+rustc = { command = "rustc" }
+
+[paths]
+bin = ["{project}/target/release"]
+```
+
+### C++ with CMake + Conda
+
+```toml
+[project]
+name = "physics-sim"
+
+[conda]
+name = "physics-sim"
+file = "environment.yaml"
+
+[tools]
+cmake = { command = "cmake", version = ">=3.20" }
+ninja = { command = "ninja" }
+clang = { command = "clang", version = ">=17" }
+
+[env]
+CMAKE_PREFIX_PATH = "{conda}"
+CMAKE_BUILD_TYPE  = "Release"
+```
+
+### Node.js
+
+```toml
+[project]
+name = "web-app"
+
+[tools]
+node = { command = "node", version = ">=18" }
+npm  = { command = "npm" }
+
+[env]
+NODE_ENV = "development"
+```
+
+### Go
+
+```toml
+[project]
+name = "api-server"
+
+[tools]
+go = { command = "go", version = ">=1.21" }
+
+[env]
+GOPATH = "{home}/go"
+
+[paths]
+bin = ["{home}/go/bin"]
+```
+
+### Multi-Language (Python + Rust + LLVM)
+
+```toml
+[project]
+name = "compiler-toolkit"
+
+[conda]
+name = "compiler-toolkit"
+file = "environment.yaml"
+
+[tools]
+python = { command = "python", version = ">=3.10" }
+cargo  = { command = "cargo", version = ">=1.80" }
+cmake  = { command = "cmake", version = ">=3.20" }
+
+[env]
+MLIR_DIR = "{conda}/lib/cmake/mlir"
+LLVM_DIR = "{conda}/lib/cmake/llvm"
+
+[paths]
+bin = ["{conda}/bin", "{project}/bin", "{project}/target/release"]
+```
+
+---
+
+## See Also
+
+- [Wrapper Generation](wrapper.md) -- how wrappers bake this config into executables
+- [Quick Reference](cheatsheet.md) -- one-page cheat sheet
+- [Examples by Language](examples-by-language.md) -- language-specific configs with wrapper patterns

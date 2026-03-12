@@ -19,7 +19,6 @@ wrapper generation -- for any language, any shell, any CI provider.
 - **[Wrapper Generation](wrapper.md)** -- How `sniff wrap` creates zero-activation executables
 - **[Quick Reference](cheatsheet.md)** -- One-page cheat sheet for `.sniff.toml` and CLI commands
 - **[Examples by Language](examples-by-language.md)** -- Configs for Python, Rust, C++, Node, Go, Java, and multi-language projects
-- **[Examples](examples.md)** -- Real-world usage: APXM, Tully, and more
 - **[Architecture](architecture.md)** -- Module organization, tiers, extension points
 - **[Contributing](contributing.md)** -- How to contribute
 

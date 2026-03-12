@@ -239,5 +239,5 @@ See `src/sniff/remediate.py` for the full Protocol definition.
 ## Next Steps
 
 - **[Architecture](architecture.md)** — Module organization and extension points
-- **[Examples](examples.md)** — APXM, Tully, and other integrations
+- **[Examples by Language](examples-by-language.md)** — Configs for Python, Rust, C++, Node, Go, Java
 - **README** — CLI framework usage (`sniff.Typer`, `sniff.cli.styles`, errors, progress)
