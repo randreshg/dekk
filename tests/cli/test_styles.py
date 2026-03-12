@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import io
-
 import pytest
 from rich.console import Console
 from rich.theme import Theme
@@ -27,43 +25,6 @@ from sniff.cli.styles import (
     print_table,
     print_warning,
 )
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-def _capture(fn, *args, **kwargs) -> str:
-    """Call *fn* while capturing its console output as plain text."""
-    buf = io.StringIO()
-    capture_console = Console(file=buf, theme=CLI_THEME, force_terminal=True, width=120)
-
-    import sniff.cli.styles as _mod
-
-    orig = _mod.console
-    _mod.console = capture_console
-    try:
-        fn(*args, **kwargs)
-    finally:
-        _mod.console = orig
-    return buf.getvalue()
-
-
-def _capture_err(fn, *args, **kwargs) -> str:
-    """Call *fn* while capturing stderr console output as plain text."""
-    buf = io.StringIO()
-    capture_console = Console(file=buf, theme=CLI_THEME, force_terminal=True, width=120)
-
-    import sniff.cli.styles as _mod
-
-    orig = _mod.err_console
-    _mod.err_console = capture_console
-    try:
-        fn(*args, **kwargs)
-    finally:
-        _mod.err_console = orig
-    return buf.getvalue()
 
 
 # ---------------------------------------------------------------------------
@@ -178,69 +139,81 @@ class TestSymbols:
 class TestPrintSuccess:
     """Tests for print_success."""
 
-    def test_contains_message(self):
-        out = _capture(print_success, "Build completed")
-        assert "Build completed" in out
+    def test_contains_message(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_success("Build completed")
+        assert "Build completed" in buf.getvalue()
 
-    def test_contains_checkmark(self):
-        out = _capture(print_success, "done")
-        assert Symbols.PASS in out
+    def test_contains_checkmark(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_success("done")
+        assert Symbols.PASS in buf.getvalue()
 
-    def test_empty_message(self):
-        out = _capture(print_success, "")
-        assert Symbols.PASS in out
+    def test_empty_message(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_success("")
+        assert Symbols.PASS in buf.getvalue()
 
 
 class TestPrintError:
     """Tests for print_error (writes to stderr)."""
 
-    def test_contains_message(self):
-        out = _capture_err(print_error, "Compilation failed")
-        assert "Compilation failed" in out
+    def test_contains_message(self, capture_err_console):
+        with capture_err_console(highlight=False) as buf:
+            print_error("Compilation failed")
+        assert "Compilation failed" in buf.getvalue()
 
-    def test_contains_fail_symbol(self):
-        out = _capture_err(print_error, "err")
-        assert Symbols.FAIL in out
+    def test_contains_fail_symbol(self, capture_err_console):
+        with capture_err_console(highlight=False) as buf:
+            print_error("err")
+        assert Symbols.FAIL in buf.getvalue()
 
-    def test_empty_message(self):
-        out = _capture_err(print_error, "")
-        assert Symbols.FAIL in out
+    def test_empty_message(self, capture_err_console):
+        with capture_err_console(highlight=False) as buf:
+            print_error("")
+        assert Symbols.FAIL in buf.getvalue()
 
 
 class TestPrintWarning:
     """Tests for print_warning (writes to stderr)."""
 
-    def test_contains_message(self):
-        out = _capture_err(print_warning, "Slow network")
-        assert "Slow network" in out
+    def test_contains_message(self, capture_err_console):
+        with capture_err_console(highlight=False) as buf:
+            print_warning("Slow network")
+        assert "Slow network" in buf.getvalue()
 
-    def test_contains_warning_symbol(self):
-        out = _capture_err(print_warning, "warn")
-        assert Symbols.WARNING in out
+    def test_contains_warning_symbol(self, capture_err_console):
+        with capture_err_console(highlight=False) as buf:
+            print_warning("warn")
+        assert Symbols.WARNING in buf.getvalue()
 
 
 class TestPrintInfo:
     """Tests for print_info."""
 
-    def test_contains_message(self):
-        out = _capture(print_info, "Using conda")
-        assert "Using conda" in out
+    def test_contains_message(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_info("Using conda")
+        assert "Using conda" in buf.getvalue()
 
-    def test_contains_info_symbol(self):
-        out = _capture(print_info, "info")
-        assert Symbols.INFO in out
+    def test_contains_info_symbol(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_info("info")
+        assert Symbols.INFO in buf.getvalue()
 
 
 class TestPrintDebug:
     """Tests for print_debug."""
 
-    def test_contains_message(self):
-        out = _capture(print_debug, "Trace details")
-        assert "Trace details" in out
+    def test_contains_message(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_debug("Trace details")
+        assert "Trace details" in buf.getvalue()
 
-    def test_contains_skip_symbol(self):
-        out = _capture(print_debug, "dbg")
-        assert Symbols.SKIP in out
+    def test_contains_skip_symbol(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_debug("dbg")
+        assert Symbols.SKIP in buf.getvalue()
 
 
 # ---------------------------------------------------------------------------
@@ -251,58 +224,71 @@ class TestPrintDebug:
 class TestPrintHeader:
     """Tests for print_header."""
 
-    def test_contains_title(self):
-        out = _capture(print_header, "Installation")
-        assert "Installation" in out
+    def test_contains_title(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_header("Installation")
+        assert "Installation" in buf.getvalue()
 
-    def test_subtitle_included_when_given(self):
-        out = _capture(print_header, "Build", subtitle="v3.0.0")
+    def test_subtitle_included_when_given(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_header("Build", subtitle="v3.0.0")
+        out = buf.getvalue()
         assert "Build" in out
         assert "v3.0.0" in out
 
-    def test_subtitle_absent_when_none(self):
-        out = _capture(print_header, "Title")
+    def test_subtitle_absent_when_none(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_header("Title")
         # Should not crash and should contain only the title
-        assert "Title" in out
+        assert "Title" in buf.getvalue()
 
 
 class TestPrintStep:
     """Tests for print_step."""
 
-    def test_message_present(self):
-        out = _capture(print_step, "Compiling")
-        assert "Compiling" in out
+    def test_message_present(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_step("Compiling")
+        assert "Compiling" in buf.getvalue()
 
-    def test_step_numbering(self):
-        out = _capture(print_step, "Building", step_num=2, total=5)
+    def test_step_numbering(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_step("Building", step_num=2, total=5)
+        out = buf.getvalue()
         # Rich markup may insert ANSI escape codes around "2/5"
         assert "2" in out and "5" in out
         assert "Building" in out
 
-    def test_no_numbering_when_none(self):
-        out = _capture(print_step, "Running")
+    def test_no_numbering_when_none(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_step("Running")
+        out = buf.getvalue()
         assert "/" not in out or "Running" in out
 
-    def test_partial_numbering_ignored(self):
+    def test_partial_numbering_ignored(self, capture_console):
         """When only step_num is given (no total), numbering is skipped."""
-        out = _capture(print_step, "Step", step_num=1)
+        with capture_console(highlight=False) as buf:
+            print_step("Step", step_num=1)
         # Should not contain "1/" since total is None
-        assert "Step" in out
+        assert "Step" in buf.getvalue()
 
 
 class TestPrintSection:
     """Tests for print_section."""
 
-    def test_contains_title(self):
-        out = _capture(print_section, "Results")
-        assert "Results" in out
+    def test_contains_title(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_section("Results")
+        assert "Results" in buf.getvalue()
 
 
 class TestPrintBlank:
     """Tests for print_blank."""
 
-    def test_produces_output(self):
-        out = _capture(print_blank)
+    def test_produces_output(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_blank()
+        out = buf.getvalue()
         # Should produce at least a newline
         assert out.strip() == "" or out == "\n"
 
@@ -315,20 +301,26 @@ class TestPrintBlank:
 class TestPrintTable:
     """Tests for print_table."""
 
-    def test_basic_table(self):
-        out = _capture(print_table, "Results", ["Name", "Score"], [["Alice", "95"], ["Bob", "87"]])
+    def test_basic_table(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_table("Results", ["Name", "Score"], [["Alice", "95"], ["Bob", "87"]])
+        out = buf.getvalue()
         assert "Results" in out
         assert "Alice" in out
         assert "95" in out
         assert "Bob" in out
 
-    def test_empty_rows(self):
-        out = _capture(print_table, "Empty", ["A", "B"], [])
+    def test_empty_rows(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_table("Empty", ["A", "B"], [])
+        out = buf.getvalue()
         assert "Empty" in out
         assert "A" in out
 
-    def test_single_column(self):
-        out = _capture(print_table, "Items", ["Item"], [["one"], ["two"]])
+    def test_single_column(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_table("Items", ["Item"], [["one"], ["two"]])
+        out = buf.getvalue()
         assert "one" in out
         assert "two" in out
 
@@ -336,31 +328,38 @@ class TestPrintTable:
 class TestPrintNumberedList:
     """Tests for print_numbered_list."""
 
-    def test_basic_list(self):
-        out = _capture(print_numbered_list, ["alpha", "beta", "gamma"])
+    def test_basic_list(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_numbered_list(["alpha", "beta", "gamma"])
+        out = buf.getvalue()
         # Rich may insert ANSI codes around numbers, so check content only
         assert "alpha" in out
         assert "beta" in out
         assert "gamma" in out
 
-    def test_empty_list(self):
-        out = _capture(print_numbered_list, [])
-        assert out.strip() == ""
+    def test_empty_list(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_numbered_list([])
+        assert buf.getvalue().strip() == ""
 
-    def test_single_item(self):
-        out = _capture(print_numbered_list, ["only"])
-        assert "only" in out
+    def test_single_item(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_numbered_list(["only"])
+        assert "only" in buf.getvalue()
 
 
 class TestPrintNextSteps:
     """Tests for print_next_steps."""
 
-    def test_contains_header_and_items(self):
-        out = _capture(print_next_steps, ["Run tests", "Deploy"])
+    def test_contains_header_and_items(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_next_steps(["Run tests", "Deploy"])
+        out = buf.getvalue()
         assert "Next steps:" in out
         assert "Run tests" in out
         assert "Deploy" in out
 
-    def test_empty_steps(self):
-        out = _capture(print_next_steps, [])
-        assert "Next steps:" in out
+    def test_empty_steps(self, capture_console):
+        with capture_console(highlight=False) as buf:
+            print_next_steps([])
+        assert "Next steps:" in buf.getvalue()

@@ -48,9 +48,12 @@ class EnvironmentActivator:
                 )
 
         # Detect conda environment
+        conda_env = None
         conda_prefix = None
         if self.spec.conda:
-            conda_prefix = CondaDetector().find_environment(self.spec.conda.name)
+            conda_env = CondaDetector().find_environment(self.spec.conda.name)
+            if conda_env:
+                conda_prefix = conda_env.prefix
 
         # Build environment variables
         builder = EnvVarBuilder()

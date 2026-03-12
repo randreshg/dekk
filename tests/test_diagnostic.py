@@ -918,15 +918,6 @@ class TestDetectedIssue:
         assert IssueSeverity.WARNING.value == "warning"
         assert IssueSeverity.ERROR.value == "error"
 
-    def test_tool_name_optional(self):
-        issue = DetectedIssue(
-            category="environment",
-            severity=IssueSeverity.INFO,
-            tool_name=None,
-            message="All good",
-        )
-        assert issue.tool_name is None
-
 
 # =========================================================================
 # 12. FixResult

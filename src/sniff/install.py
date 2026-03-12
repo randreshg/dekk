@@ -43,11 +43,9 @@ class BinaryInstaller:
         Returns:
             InstallResult with details
         """
-        # Validate source
         if not source.exists():
             raise NotFoundError(f"Binary not found: {source}", hint="Build it first")
 
-        # Create target
         if bin_dir is None:
             bin_dir = self.project_root / "bin"
         bin_dir.mkdir(parents=True, exist_ok=True)
@@ -58,13 +56,11 @@ class BinaryInstaller:
             if target.exists():
                 target.unlink()
             target.symlink_to(source.resolve())
-            message = f"Installed {source.name} → {bin_dir}"
         except (OSError, NotImplementedError):
             shutil.copy2(source, target)
             target.chmod(0o755)
-            message = f"Installed {source.name} → {bin_dir}"
+        message = f"Installed {source.name} → {bin_dir}"
 
-        # Check PATH
         in_path = self._is_in_path(bin_dir)
 
         if not in_path and update_shell:
@@ -76,6 +72,131 @@ class BinaryInstaller:
 
         return InstallResult(bin_path=target, in_path=in_path, message=message)
 
+    def install_wrapper(
+        self,
+        target: Path,
+        spec: Optional["EnvironmentSpec"] = None,
+        spec_file: Optional[Path] = None,
+        python: Optional[Path] = None,
+        name: Optional[str] = None,
+        install_dir: Optional[Path] = None,
+    ) -> InstallResult:
+        """Generate and install a self-contained wrapper script.
+
+        Creates a shell script that activates the full project environment
+        (conda, paths, env vars) and execs the target. No manual activation needed.
+
+        Args:
+            target: Binary or script to wrap (what the wrapper execs)
+            spec: Pre-loaded EnvironmentSpec (mutually exclusive with spec_file)
+            spec_file: Path to .sniff.toml (mutually exclusive with spec)
+            python: Python interpreter to use (for wrapping Python scripts)
+            name: Name for the wrapper binary (default: target filename)
+            install_dir: Where to install (default: ~/.local/bin)
+
+        Returns:
+            InstallResult with details
+        """
+        from sniff.envspec import EnvironmentSpec, find_envspec
+        from sniff.wrapper import WrapperGenerator
+
+        if spec is None:
+            if spec_file is not None:
+                spec = EnvironmentSpec.from_file(spec_file)
+            else:
+                found = find_envspec(self.project_root)
+                if found is None:
+                    raise NotFoundError(
+                        "No .sniff.toml found",
+                        hint="Provide spec or spec_file, or create .sniff.toml",
+                    )
+                spec = EnvironmentSpec.from_file(found)
+
+        wrapper_name = name or target.stem
+
+        return WrapperGenerator.install_from_spec(
+            spec_file=spec,
+            target=target,
+            name=wrapper_name,
+            python=python,
+            install_dir=install_dir,
+            project_root=self.project_root,
+        )
+
+    def uninstall(
+        self,
+        name: str,
+        bin_dir: Optional[Path] = None,
+        clean_shell: bool = True,
+    ) -> InstallResult:
+        """Remove an installed binary and optionally clean shell config.
+
+        Args:
+            name: Binary file name to remove
+            bin_dir: Directory to look in (default: {project}/bin)
+            clean_shell: Remove PATH entries from shell config
+
+        Returns:
+            InstallResult with details
+        """
+        if bin_dir is None:
+            bin_dir = self.project_root / "bin"
+
+        target = bin_dir / name
+        if target.exists() or target.is_symlink():
+            target.unlink()
+            message = f"Removed {name} from {bin_dir}"
+        else:
+            message = f"{name} not found in {bin_dir} (nothing to remove)"
+
+        if clean_shell:
+            self._remove_from_shell_config(bin_dir)
+
+        return InstallResult(bin_path=target, in_path=False, message=message)
+
+    def _remove_from_shell_config(self, bin_dir: Path) -> bool:
+        """Remove PATH entries added by install_binary. Returns True if cleaned."""
+        shell_info = ShellDetector().detect()
+        if not shell_info or shell_info.kind == ShellKind.UNKNOWN:
+            return False
+
+        config_file = self._find_shell_config(shell_info.kind)
+        if not config_file or not config_file.exists():
+            return False
+
+        marker = f"# {self.project_root.name} bin"
+        try:
+            lines = config_file.read_text().splitlines(keepends=True)
+        except (OSError, UnicodeDecodeError):
+            return False
+
+        # Remove the marker line and the export line that follows it
+        cleaned: list[str] = []
+        skip_next = False
+        removed = False
+        for line in lines:
+            if skip_next:
+                skip_next = False
+                removed = True
+                continue
+            if marker in line:
+                skip_next = True
+                removed = True
+                # Also skip the blank line before the marker if present
+                if cleaned and cleaned[-1].strip() == "":
+                    cleaned.pop()
+                continue
+            cleaned.append(line)
+
+        if removed:
+            try:
+                config_file.write_text("".join(cleaned))
+                return True
+            except (OSError, PermissionError):
+                return False
+
+        return False
+
     def _is_in_path(self, directory: Path) -> bool:
         """Check if directory is in PATH."""
         path_dirs = os.environ.get("PATH", "").split(os.pathsep)
@@ -84,24 +205,20 @@ class BinaryInstaller:
 
     def _add_to_shell_config(self, bin_dir: Path) -> bool:
         """Add bin_dir to shell config. Returns True if updated."""
-        # Detect shell
         shell_info = ShellDetector().detect()
         if not shell_info or shell_info.kind == ShellKind.UNKNOWN:
             return False
 
-        # Find config file
         config_file = self._find_shell_config(shell_info.kind)
         if not config_file or not config_file.exists():
             return False
 
-        # Check if already configured
         try:
             if str(bin_dir) in config_file.read_text():
                 return False
         except (OSError, UnicodeDecodeError):
             return False
 
-        # Append PATH export
         export_line = self._path_export(shell_info.kind, bin_dir)
         try:
             with config_file.open("a") as f:
@@ -121,7 +238,6 @@ class BinaryInstaller:
             ShellKind.TCSH: [home / ".tcshrc", home / ".cshrc"],
         }.get(kind, [])
 
-        # Return first existing file
         for candidate in candidates:
             if candidate.exists():
                 return candidate

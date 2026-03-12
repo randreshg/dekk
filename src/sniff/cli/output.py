@@ -1,17 +1,22 @@
 """Multi-format output handler for sniff CLI applications.
 
 Provides :class:`OutputFormatter` which supports TABLE, JSON, YAML, and TEXT
-output formats with quiet/verbose support, and delegates styled messages to
-the functions defined in :mod:`sniff.cli.styles`.
+output formats with quiet/verbose support, and :func:`print_dep_results` for
+displaying dependency check results in a consistent style.
 
 Usage::
 
-    from sniff.cli.output import OutputFormatter, OutputFormat
+    from sniff.cli.output import OutputFormatter, OutputFormat, print_dep_results
 
     fmt = OutputFormatter(format=OutputFormat.TABLE, verbose=True)
     fmt.print_result({"name": "sniff", "version": "3.0.0"}, title="Package Info")
     fmt.success("Build completed")
     fmt.error("Compilation failed")
+
+    # Dep-check display:
+    from sniff import DependencyChecker, DependencySpec
+    results = DependencyChecker().check_all([...])
+    missing = print_dep_results(results)
 """
 
 from __future__ import annotations
@@ -21,13 +26,13 @@ from enum import Enum
 from typing import Any
 
 from sniff.cli.styles import (
-    console,
     print_error,
     print_header,
     print_info,
     print_success,
     print_warning,
 )
+
 
 
 class OutputFormat(str, Enum):
@@ -123,7 +128,8 @@ class OutputFormatter:
             else:
                 value_str = str(value)
             table.add_row(str(key), value_str)
-        console.print(table)
+        from sniff.cli.styles import _get_console
+        _get_console().print(table)
 
     # ------------------------------------------------------------------
     # Delegating status methods
@@ -162,5 +168,66 @@ class OutputFormatter:
         Args:
             msg: The informational message to display.
         """
-        if not self.quiet and self.verbose:
+        if not self.quiet and self.verbose and self.format == OutputFormat.TABLE:
             print_info(msg)
+
+
+# ---------------------------------------------------------------------------
+# Dependency check display
+# ---------------------------------------------------------------------------
+
+
+def print_dep_results(
+    results: list,
+    *,
+    skip_names: set[str] | frozenset[str] | None = None,
+) -> list[str]:
+    """Print dependency check results and return a list of blocking issues.
+
+    Iterates over a list of :class:`~sniff.deps.DependencyResult` objects,
+    prints a success/warning/error line for each one, and collects the names
+    of required dependencies that are missing or need upgrading so the caller
+    can include them in an action-required summary.
+
+    Args:
+        results: Iterable of ``DependencyResult`` objects (from
+            :class:`~sniff.deps.DependencyChecker`).
+        skip_names: Optional set of dependency *names* whose failures should
+            not be added to the returned missing list.  Use this when a later
+            install stage will handle those deps in detail (e.g. Conda and
+            Rust are validated again in dedicated stages of ``apxm install``).
+
+    Returns:
+        List of human-readable strings describing missing or broken
+        dependencies, ready to pass to :func:`~sniff.cli.styles.print_numbered_list`.
+
+    Example::
+
+        from sniff import DependencyChecker, print_dep_results
+
+        results = DependencyChecker().check_all(specs)
+        missing = print_dep_results(results, skip_names={"Mamba/Conda", "Rust"})
+        if missing:
+            print_numbered_list(missing)
+    """
+    skip = skip_names or set()
+    missing: list[str] = []
+
+    for r in results:
+        v = f" ({r.version})" if r.version else ""
+        if r.found:
+            if r.meets_minimum:
+                print_success(f"{r.name}{v}")
+            else:
+                print_warning(f"{r.name}{v} -- needs upgrade")
+                if r.name not in skip:
+                    missing.append(f"{r.name} (upgrade required)")
+        else:
+            if r.required:
+                print_error(f"{r.name} -- not found")
+                if r.name not in skip:
+                    missing.append(r.name)
+            else:
+                print_warning(f"{r.name} -- not found (optional)")
+
+    return missing

@@ -1,17 +1,34 @@
-"""Tests for sniff.cli.output -- OutputFormat and OutputFormatter."""
+"""Tests for sniff.cli.output -- OutputFormat, OutputFormatter, print_dep_results."""
 
 from __future__ import annotations
 
 import io
 import json
+from dataclasses import dataclass
 from unittest.mock import patch
 
 import pytest
 from rich.console import Console
 from rich.theme import Theme
 
-from sniff.cli.output import OutputFormat, OutputFormatter
+from sniff.cli.output import OutputFormat, OutputFormatter, print_dep_results
 from sniff.cli.styles import CLI_THEME
+
+
+# ---------------------------------------------------------------------------
+# Minimal DependencyResult stub (avoids importing sniff.deps to keep tests fast)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _DepResult:
+    name: str
+    command: str
+    found: bool
+    version: str | None = None
+    meets_minimum: bool = True
+    required: bool = True
+    error: str | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -24,46 +41,6 @@ def _capture_stdout(fn, *args, **kwargs) -> str:
     buf = io.StringIO()
     with patch("sys.stdout", buf):
         fn(*args, **kwargs)
-    return buf.getvalue()
-
-
-def _capture_console(fn, *args, **kwargs) -> str:
-    """Capture Rich console output by patching the styles module console.
-
-    Also patches the ``console`` reference in ``sniff.cli.output`` since
-    ``_print_table`` uses it directly.
-    """
-    buf = io.StringIO()
-    capture_console = Console(file=buf, theme=CLI_THEME, force_terminal=True, width=120)
-
-    import sniff.cli.output as _out_mod
-    import sniff.cli.styles as _mod
-
-    orig_styles = _mod.console
-    orig_output = _out_mod.console
-    _mod.console = capture_console
-    _out_mod.console = capture_console
-    try:
-        fn(*args, **kwargs)
-    finally:
-        _mod.console = orig_styles
-        _out_mod.console = orig_output
-    return buf.getvalue()
-
-
-def _capture_err_console(fn, *args, **kwargs) -> str:
-    """Capture Rich err_console output."""
-    buf = io.StringIO()
-    capture_console = Console(file=buf, theme=CLI_THEME, force_terminal=True, width=120)
-
-    import sniff.cli.styles as _mod
-
-    orig = _mod.err_console
-    _mod.err_console = capture_console
-    try:
-        fn(*args, **kwargs)
-    finally:
-        _mod.err_console = orig
     return buf.getvalue()
 
 
@@ -143,7 +120,8 @@ class TestPrintResultJSON:
         fmt = OutputFormatter(format=OutputFormat.JSON)
         out = _capture_stdout(fmt.print_result, {"x": 1}, title="Ignored Title")
         parsed = json.loads(out)
-        assert "Ignored Title" not in out or parsed == {"x": 1}
+        assert parsed == {"x": 1}
+        assert "Ignored Title" not in out
 
 
 # ---------------------------------------------------------------------------
@@ -200,26 +178,31 @@ class TestPrintResultText:
 class TestPrintResultTable:
     """Tests for print_result in TABLE mode."""
 
-    def test_table_contains_values(self):
+    def test_table_contains_values(self, capture_console):
         fmt = OutputFormatter(format=OutputFormat.TABLE)
-        out = _capture_console(fmt.print_result, {"name": "sniff"})
+        with capture_console() as buf:
+            fmt.print_result({"name": "sniff"})
+        out = buf.getvalue()
         assert "name" in out
         assert "sniff" in out
 
-    def test_table_with_title(self):
+    def test_table_with_title(self, capture_console):
         fmt = OutputFormatter(format=OutputFormat.TABLE)
-        out = _capture_console(fmt.print_result, {"k": "v"}, title="My Title")
-        assert "My Title" in out
+        with capture_console() as buf:
+            fmt.print_result({"k": "v"}, title="My Title")
+        assert "My Title" in buf.getvalue()
 
-    def test_table_nested_value_json_serialized(self):
+    def test_table_nested_value_json_serialized(self, capture_console):
         fmt = OutputFormatter(format=OutputFormat.TABLE)
-        out = _capture_console(fmt.print_result, {"items": [1, 2, 3]})
-        assert "items" in out
+        with capture_console() as buf:
+            fmt.print_result({"items": [1, 2, 3]})
+        assert "items" in buf.getvalue()
 
-    def test_table_dict_value_json_serialized(self):
+    def test_table_dict_value_json_serialized(self, capture_console):
         fmt = OutputFormatter(format=OutputFormat.TABLE)
-        out = _capture_console(fmt.print_result, {"nested": {"a": 1}})
-        assert "nested" in out
+        with capture_console() as buf:
+            fmt.print_result({"nested": {"a": 1}})
+        assert "nested" in buf.getvalue()
 
 
 # ---------------------------------------------------------------------------
@@ -235,25 +218,29 @@ class TestQuietMode:
         out = _capture_stdout(fmt.print_result, {"key": "val"})
         assert out == ""
 
-    def test_success_suppressed(self):
+    def test_success_suppressed(self, capture_console):
         fmt = OutputFormatter(quiet=True)
-        out = _capture_console(fmt.success, "done")
-        assert out == ""
+        with capture_console() as buf:
+            fmt.success("done")
+        assert buf.getvalue() == ""
 
-    def test_error_suppressed(self):
+    def test_error_suppressed(self, capture_err_console):
         fmt = OutputFormatter(quiet=True)
-        out = _capture_err_console(fmt.error, "fail")
-        assert out == ""
+        with capture_err_console() as buf:
+            fmt.error("fail")
+        assert buf.getvalue() == ""
 
-    def test_warning_suppressed(self):
+    def test_warning_suppressed(self, capture_console):
         fmt = OutputFormatter(quiet=True)
-        out = _capture_console(fmt.warning, "warn")
-        assert out == ""
+        with capture_console() as buf:
+            fmt.warning("warn")
+        assert buf.getvalue() == ""
 
-    def test_info_suppressed(self):
+    def test_info_suppressed(self, capture_console):
         fmt = OutputFormatter(quiet=True, verbose=True)
-        out = _capture_console(fmt.info, "detail")
-        assert out == ""
+        with capture_console() as buf:
+            fmt.info("detail")
+        assert buf.getvalue() == ""
 
 
 # ---------------------------------------------------------------------------
@@ -264,38 +251,144 @@ class TestQuietMode:
 class TestStatusMethods:
     """Tests for success/error/warning/info delegation."""
 
-    def test_success_in_table_mode(self):
+    def test_success_in_table_mode(self, capture_console):
         fmt = OutputFormatter(format=OutputFormat.TABLE)
-        out = _capture_console(fmt.success, "All good")
-        assert "All good" in out
+        with capture_console() as buf:
+            fmt.success("All good")
+        assert "All good" in buf.getvalue()
 
-    def test_success_suppressed_in_json_mode(self):
+    def test_success_suppressed_in_json_mode(self, capture_console):
         fmt = OutputFormatter(format=OutputFormat.JSON)
-        out = _capture_console(fmt.success, "hidden")
-        assert out == ""
+        with capture_console() as buf:
+            fmt.success("hidden")
+        assert buf.getvalue() == ""
 
-    def test_error_shown_in_any_format(self):
+    def test_error_shown_in_any_format(self, capture_err_console):
         for f in OutputFormat:
             fmt = OutputFormatter(format=f)
-            out = _capture_err_console(fmt.error, "fail")
-            assert "fail" in out, f"error not shown in {f.name} mode"
+            with capture_err_console() as buf:
+                fmt.error("fail")
+            assert "fail" in buf.getvalue(), f"error not shown in {f.name} mode"
 
-    def test_warning_in_table_mode(self):
+    def test_warning_in_table_mode(self, capture_err_console):
         fmt = OutputFormatter(format=OutputFormat.TABLE)
-        out = _capture_err_console(fmt.warning, "caution")
-        assert "caution" in out
+        with capture_err_console() as buf:
+            fmt.warning("caution")
+        assert "caution" in buf.getvalue()
 
-    def test_warning_suppressed_in_json_mode(self):
+    def test_warning_suppressed_in_json_mode(self, capture_err_console):
         fmt = OutputFormatter(format=OutputFormat.JSON)
-        out = _capture_err_console(fmt.warning, "hidden")
-        assert out == ""
+        with capture_err_console() as buf:
+            fmt.warning("hidden")
+        assert buf.getvalue() == ""
 
-    def test_info_requires_verbose(self):
+    def test_info_requires_verbose(self, capture_console):
         fmt = OutputFormatter(verbose=False)
-        out = _capture_console(fmt.info, "hidden")
-        assert out == ""
+        with capture_console() as buf:
+            fmt.info("hidden")
+        assert buf.getvalue() == ""
 
-    def test_info_shown_when_verbose(self):
+    def test_info_shown_when_verbose(self, capture_console):
         fmt = OutputFormatter(verbose=True)
-        out = _capture_console(fmt.info, "visible")
-        assert "visible" in out
+        with capture_console() as buf:
+            fmt.info("visible")
+        assert "visible" in buf.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# print_dep_results
+# ---------------------------------------------------------------------------
+
+
+class TestPrintDepResults:
+    """Tests for the print_dep_results() helper."""
+
+    def test_returns_empty_list_when_all_ok(self):
+        results = [
+            _DepResult(name="cmake", command="cmake", found=True, version="3.28.0"),
+            _DepResult(name="git", command="git", found=True, version="2.44.0"),
+        ]
+        missing = print_dep_results(results)
+        assert missing == []
+
+    def test_required_missing_dep_in_returned_list(self):
+        results = [_DepResult(name="cmake", command="cmake", found=False, required=True)]
+        missing = print_dep_results(results)
+        assert "cmake" in missing
+
+    def test_optional_missing_dep_not_in_returned_list(self):
+        results = [_DepResult(name="ninja", command="ninja", found=False, required=False)]
+        missing = print_dep_results(results)
+        assert missing == []
+
+    def test_needs_upgrade_in_returned_list(self):
+        results = [
+            _DepResult(name="cmake", command="cmake", found=True,
+                       version="3.10.0", meets_minimum=False)
+        ]
+        missing = print_dep_results(results)
+        assert any("cmake" in m for m in missing)
+        assert any("upgrade" in m.lower() for m in missing)
+
+    def test_skip_names_excludes_from_missing(self):
+        results = [
+            _DepResult(name="Rust", command="rustc", found=False, required=True),
+            _DepResult(name="cmake", command="cmake", found=False, required=True),
+        ]
+        missing = print_dep_results(results, skip_names={"Rust"})
+        assert not any("Rust" in m for m in missing)
+        assert any("cmake" in m for m in missing)
+
+    def test_skip_names_none_includes_all(self):
+        results = [
+            _DepResult(name="Rust", command="rustc", found=False, required=True),
+        ]
+        missing = print_dep_results(results, skip_names=None)
+        assert any("Rust" in m for m in missing)
+
+    def test_success_prints_to_stdout(self):
+        results = [_DepResult(name="git", command="git", found=True, version="2.44.0")]
+        with patch("sniff.cli.output.print_success") as mock_ok:
+            print_dep_results(results)
+        mock_ok.assert_called_once()
+        assert "git" in mock_ok.call_args[0][0]
+
+    def test_missing_required_prints_error(self):
+        results = [_DepResult(name="cmake", command="cmake", found=False, required=True)]
+        with patch("sniff.cli.output.print_error") as mock_err:
+            print_dep_results(results)
+        mock_err.assert_called_once()
+
+    def test_missing_optional_prints_warning(self):
+        results = [_DepResult(name="ninja", command="ninja", found=False, required=False)]
+        with patch("sniff.cli.output.print_warning") as mock_warn:
+            print_dep_results(results)
+        mock_warn.assert_called_once()
+
+    def test_needs_upgrade_prints_warning(self):
+        results = [
+            _DepResult(name="cmake", command="cmake", found=True,
+                       version="3.10.0", meets_minimum=False)
+        ]
+        with patch("sniff.cli.output.print_warning") as mock_warn:
+            print_dep_results(results)
+        mock_warn.assert_called_once()
+
+    def test_version_shown_when_present(self):
+        results = [_DepResult(name="git", command="git", found=True, version="2.44.0")]
+        with patch("sniff.cli.output.print_success") as mock_ok:
+            print_dep_results(results)
+        assert "2.44.0" in mock_ok.call_args[0][0]
+
+    def test_no_version_does_not_crash(self):
+        results = [_DepResult(name="cmake", command="cmake", found=True, version=None)]
+        missing = print_dep_results(results)
+        assert missing == []
+
+    def test_empty_results(self):
+        assert print_dep_results([]) == []
+
+    def test_frozenset_skip_names_accepted(self):
+        results = [_DepResult(name="Rust", command="rustc", found=False, required=True)]
+        missing = print_dep_results(results, skip_names=frozenset({"Rust"}))
+        assert missing == []

@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch, call
 
 import pytest
 
-from sniff.typer_app import Typer, _require_typer, _TYPER_AVAILABLE
+from sniff.typer_app import Typer, _get_typer, _TYPER_AVAILABLE
 from sniff.cli.errors import SniffError, ValidationError, NotFoundError, ExitCodes
 import typer as base_typer
 from typer.testing import CliRunner
@@ -59,18 +59,21 @@ def _make_app_with_two_commands(fake_ctx, **app_kwargs):
 
 class TestModuleAvailability:
     def test_typer_is_available(self):
-        assert _TYPER_AVAILABLE is True
+        _get_typer()  # trigger lazy load
+        from sniff.typer_app import _TYPER_AVAILABLE as current
+        assert current is True
 
-    def test_require_typer_succeeds(self):
-        _require_typer()
+    def test_get_typer_succeeds(self):
+        _get_typer()
 
     @patch("sniff.typer_app._TYPER_AVAILABLE", False)
-    def test_require_typer_raises_when_missing(self):
+    def test_get_typer_raises_when_missing(self):
         with pytest.raises(ImportError, match="typer is required"):
-            _require_typer()
+            _get_typer()
 
-    def test_typer_class_is_subclass(self):
-        assert issubclass(Typer, base_typer.Typer)
+    def test_typer_wraps_base_typer(self):
+        app = Typer()
+        assert isinstance(app._app, base_typer.Typer)
 
 
 # ===========================================================================
@@ -757,7 +760,7 @@ class TestAllBuiltInCommands:
             if cmd.callback is not None:
                 cmd_names.add(cmd.name or cmd.callback.__name__)
         assert "doctor" in cmd_names
-        assert "version_cmd" in cmd_names
+        assert "version" in cmd_names
         assert "env" in cmd_names
 
     def test_no_builtin_commands_by_default(self):
@@ -776,97 +779,6 @@ class TestAllBuiltInCommands:
 # ===========================================================================
 # _wrap_with_tracking
 # ===========================================================================
-
-
-class TestWrapWithTracking:
-    def test_wrap_preserves_function_name(self):
-        app = Typer(enable_tracking=True)
-        fake_ctx = _make_fake_context()
-        app._context = fake_ctx
-
-        def my_func():
-            return 42
-
-        wrapped = app._wrap_with_tracking(my_func)
-        assert wrapped.__name__ == "my_func"
-
-    def test_wrap_calls_start_and_complete(self):
-        app = Typer(enable_tracking=True)
-        fake_ctx = _make_fake_context()
-        app._context = fake_ctx
-
-        mock_client = MagicMock()
-        mock_client.start_run.return_value = "run-w"
-        app._tully_client = mock_client
-
-        def my_func():
-            return "result"
-
-        wrapped = app._wrap_with_tracking(my_func)
-        result = wrapped()
-
-        assert result == "result"
-        mock_client.start_run.assert_called_once()
-        mock_client.complete_run.assert_called_once_with("run-w", "success", error=None)
-
-    def test_wrap_tracks_failure(self):
-        app = Typer(enable_tracking=True)
-        fake_ctx = _make_fake_context()
-        app._context = fake_ctx
-
-        mock_client = MagicMock()
-        mock_client.start_run.return_value = "run-f"
-        app._tully_client = mock_client
-
-        def failing_func():
-            raise RuntimeError("wrapped boom")
-
-        wrapped = app._wrap_with_tracking(failing_func)
-        with pytest.raises(RuntimeError, match="wrapped boom"):
-            wrapped()
-
-        mock_client.complete_run.assert_called_once_with(
-            "run-f", "failed", error="wrapped boom"
-        )
-
-    def test_wrap_passes_args(self):
-        app = Typer(enable_tracking=True)
-        fake_ctx = _make_fake_context()
-        app._context = fake_ctx
-        app._tully_client = MagicMock()
-        app._tully_client.start_run.return_value = "run-a"
-
-        def adder(a: int, b: int) -> int:
-            return a + b
-
-        wrapped = app._wrap_with_tracking(adder)
-        assert wrapped(3, 4) == 7
-
-    def test_wrap_passes_kwargs(self):
-        app = Typer(enable_tracking=True)
-        fake_ctx = _make_fake_context()
-        app._context = fake_ctx
-        app._tully_client = MagicMock()
-        app._tully_client.start_run.return_value = "run-k"
-
-        def greeter(name: str, greeting: str = "Hi") -> str:
-            return f"{greeting} {name}"
-
-        wrapped = app._wrap_with_tracking(greeter)
-        assert wrapped("Bob", greeting="Hello") == "Hello Bob"
-
-    def test_wrap_no_tully_client(self):
-        app = Typer(enable_tracking=True)
-        fake_ctx = _make_fake_context()
-        app._context = fake_ctx
-
-        with patch("sniff.typer_app.Typer._get_tully_client", return_value=None):
-            def my_func():
-                return "ok"
-
-            wrapped = app._wrap_with_tracking(my_func)
-            result = wrapped()
-            assert result == "ok"
 
 
 # ===========================================================================

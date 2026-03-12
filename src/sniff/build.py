@@ -19,20 +19,11 @@ Pure detection -- no side effects, no subprocesses. Reads files only.
 from __future__ import annotations
 
 import enum
-import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import sys
-
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    try:
-        import tomli as tomllib  # type: ignore[no-redefine]
-    except ImportError:
-        tomllib = None  # type: ignore[assignment]
+from sniff._compat import load_toml, load_json
 
 
 class BuildSystem(enum.Enum):
@@ -183,7 +174,7 @@ class BuildSystemDetector:
         if not cargo_toml.exists():
             return None
 
-        data = self._load_toml(cargo_toml)
+        data = load_toml(cargo_toml)
         if not data:
             return None
 
@@ -420,7 +411,7 @@ class BuildSystemDetector:
         if (root / ".yarnrc.yml").exists() or (root / "yarn.lock").exists():
             return None
 
-        data = self._load_json(pkg_json)
+        data = load_json(pkg_json)
         if not data:
             return None
 
@@ -450,7 +441,7 @@ class BuildSystemDetector:
         targets: list[BuildTarget] = []
         pkg_json = root / "package.json"
         if pkg_json.exists():
-            data = self._load_json(pkg_json)
+            data = load_json(pkg_json)
             if data:
                 targets = self._parse_npm_scripts(data)
 
@@ -477,7 +468,7 @@ class BuildSystemDetector:
         targets: list[BuildTarget] = []
         is_workspace = False
         if pkg_json.exists():
-            data = self._load_json(pkg_json)
+            data = load_json(pkg_json)
             if data:
                 targets = self._parse_npm_scripts(data)
                 is_workspace = "workspaces" in data
@@ -501,7 +492,7 @@ class BuildSystemDetector:
                 targets: list[BuildTarget] = []
                 is_workspace = False
                 if pkg_json.exists():
-                    data = self._load_json(pkg_json)
+                    data = load_json(pkg_json)
                     if data:
                         targets = self._parse_npm_scripts(data)
                         is_workspace = "workspaces" in data
@@ -531,7 +522,7 @@ class BuildSystemDetector:
         if not pyproject.exists():
             return None
 
-        data = self._load_toml(pyproject)
+        data = load_toml(pyproject)
         if not data:
             return None
 
@@ -559,7 +550,7 @@ class BuildSystemDetector:
         if not pyproject.exists():
             return None
 
-        data = self._load_toml(pyproject)
+        data = load_toml(pyproject)
         if not data:
             return None
 
@@ -586,7 +577,7 @@ class BuildSystemDetector:
         if not pyproject.exists():
             return None
 
-        data = self._load_toml(pyproject)
+        data = load_toml(pyproject)
         if not data:
             return None
 
@@ -613,7 +604,7 @@ class BuildSystemDetector:
         if not pyproject.exists():
             return None
 
-        data = self._load_toml(pyproject)
+        data = load_toml(pyproject)
         if not data:
             return None
 
@@ -654,7 +645,7 @@ class BuildSystemDetector:
         # Check pyproject.toml with setuptools backend
         pyproject = root / "pyproject.toml"
         if pyproject.exists():
-            data = self._load_toml(pyproject)
+            data = load_toml(pyproject)
             if data:
                 backend = data.get("build-system", {}).get("build-backend", "")
                 if "setuptools" in backend:
@@ -676,7 +667,7 @@ class BuildSystemDetector:
         if not pyproject.exists():
             return None
 
-        data = self._load_toml(pyproject)
+        data = load_toml(pyproject)
         if not data:
             return None
 
@@ -704,7 +695,7 @@ class BuildSystemDetector:
         if not pyproject.exists():
             return None
 
-        data = self._load_toml(pyproject)
+        data = load_toml(pyproject)
         if not data:
             return None
 
@@ -894,20 +885,4 @@ class BuildSystemDetector:
             config_file=dune_project,
         )
 
-    # --- Utility methods ---
-
-    def _load_toml(self, path: Path) -> dict | None:
-        if tomllib is None:
-            return None
-        try:
-            with open(path, "rb") as f:
-                return tomllib.load(f)
-        except (OSError, ValueError):
-            return None
-
-    def _load_json(self, path: Path) -> dict | None:
-        try:
-            with open(path, encoding="utf-8") as f:
-                return json.load(f)
-        except (OSError, ValueError, json.JSONDecodeError):
-            return None
+    # --- Utility methods kept for subclass compat; delegate to _compat ---

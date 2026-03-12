@@ -8,6 +8,86 @@ import subprocess
 from dataclasses import dataclass
 
 
+# ---------------------------------------------------------------------------
+# ToolChecker -- low-level tool detection
+# ---------------------------------------------------------------------------
+
+
+class ToolChecker:
+    """Low-level tool version extraction."""
+
+    def __init__(self, timeout: float = 10.0):
+        """
+        Initialize tool checker.
+
+        Args:
+            timeout: Timeout for subprocess calls.
+        """
+        self.timeout = timeout
+
+    def which(self, command: str) -> str | None:
+        """
+        Find command in PATH.
+
+        Args:
+            command: Command name to search for.
+
+        Returns:
+            Full path to command, or None if not found.
+        """
+        return shutil.which(command)
+
+    def get_version(
+        self, command: str, version_arg: str = "--version", pattern: str | None = None
+    ) -> str | None:
+        """
+        Get version string from a command.
+
+        Args:
+            command: Command to run.
+            version_arg: Argument to get version (default: "--version").
+            pattern: Regex pattern to extract version. If None, uses common patterns.
+
+        Returns:
+            Version string if found, None otherwise.
+        """
+        try:
+            result = subprocess.run(
+                [command, version_arg],
+                capture_output=True,
+                text=True,
+                timeout=self.timeout,
+                check=False,
+            )
+
+            output = result.stdout + result.stderr
+
+            if pattern:
+                match = re.search(pattern, output)
+                if match:
+                    return match.group(1) if match.groups() else match.group(0)
+            else:
+                # Try common patterns
+                patterns = [
+                    r"(\d+\.\d+\.\d+)",  # Semantic version
+                    r"version\s+(\d+\.\d+)",  # "version X.Y"
+                ]
+                for p in patterns:
+                    match = re.search(p, output, re.IGNORECASE)
+                    if match:
+                        return match.group(1)
+
+            return None
+
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            return None
+
+
+# ---------------------------------------------------------------------------
+# DependencyChecker -- high-level dependency validation
+# ---------------------------------------------------------------------------
+
+
 @dataclass
 class DependencySpec:
     """Specification for a dependency to check."""
@@ -50,6 +130,7 @@ class DependencyChecker:
             timeout: Seconds to wait for version commands.
         """
         self.timeout = timeout
+        self._tool_checker = ToolChecker(timeout=timeout)
 
     def check(self, spec: DependencySpec) -> DependencyResult:
         """
@@ -104,49 +185,16 @@ class DependencyChecker:
     def _get_version(
         self, command: str, version_arg: str, version_pattern: str | None
     ) -> str | None:
-        """Extract version from command output."""
-        try:
-            result = subprocess.run(
-                [command, version_arg],
-                capture_output=True,
-                text=True,
-                timeout=self.timeout,
-                check=False,
-            )
-
-            output = result.stdout + result.stderr
-
-            if version_pattern:
-                match = re.search(version_pattern, output)
-                if match:
-                    return match.group(1) if match.groups() else match.group(0)
-            else:
-                # Try common patterns
-                patterns = [
-                    r"(\d+\.\d+\.\d+)",  # Semantic version
-                    r"version\s+(\d+\.\d+)",  # "version X.Y"
-                ]
-                for pattern in patterns:
-                    match = re.search(pattern, output, re.IGNORECASE)
-                    if match:
-                        return match.group(1)
-
-            return None
-
-        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-            return None
+        """Extract version from command output. Delegates to ToolChecker."""
+        return self._tool_checker.get_version(command, version_arg=version_arg, pattern=version_pattern)
 
     def _compare_versions(self, version: str, minimum: str) -> bool:
-        """Compare version strings (simple semantic version comparison)."""
-        try:
-            v_parts = [int(x) for x in version.split(".")[:3]]
-            m_parts = [int(x) for x in minimum.split(".")[:3]]
+        """Compare version strings using sniff.version.Version."""
+        from sniff.version import Version
 
-            # Pad to 3 parts
-            v_parts += [0] * (3 - len(v_parts))
-            m_parts += [0] * (3 - len(m_parts))
-
-            return tuple(v_parts) >= tuple(m_parts)
-        except (ValueError, IndexError):
+        v = Version.try_parse(version)
+        m = Version.try_parse(minimum)
+        if v is None or m is None:
             # If parsing fails, assume it's OK
             return True
+        return v >= m

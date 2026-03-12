@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2026-03-11
+
+### Added
+
+#### `sniff.cli.runner` -- LLM-friendly subprocess runner
+
+Long-running CLI subprocesses (cargo build, conda env create, etc.) produce
+exaggerated streaming output that is expensive for LLMs and coding agents to
+read. `run_logged` solves this at the library level so every project using sniff
+gets the same behaviour for free.
+
+- `RunResult` -- frozen dataclass with `returncode: int`, `log_path: Path`, and
+  `.ok` property
+- `run_logged(cmd, *, log_path, label, spinner_text, env, cwd, tail_lines,
+  append)` -- runs a subprocess behind a spinner, captures all stdout+stderr to
+  a log file, prints `Build output -> <path>` so agents know where to read the
+  full output, and on failure echoes the last `tail_lines` lines inline so the
+  error is visible immediately without opening the file
+
+Both symbols are exported from the top-level `sniff` package.
+
+---
+
 ## [3.0.0] - 2026-03-10
 
 sniff 3.0.0 evolves sniff from a pure environment detection library into a

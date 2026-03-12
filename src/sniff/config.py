@@ -3,19 +3,11 @@
 from __future__ import annotations
 
 import os
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    # Fallback for Python 3.10
-    try:
-        import tomli as tomllib  # type: ignore
-    except ImportError:
-        tomllib = None  # type: ignore
+from sniff._compat import tomllib, load_toml, deep_merge, walk_up
 
 
 class ConfigManager:
@@ -62,57 +54,29 @@ class ConfigManager:
         if os.name != "nt":
             system_config = Path(f"/etc/{self.app_name}/config.toml")
             if system_config.exists():
-                self._merge(self._load_toml(system_config))
+                self._merge(load_toml(system_config) or {})
 
         # Load user config
         user_config = Path.home() / ".config" / self.app_name / "config.toml"
         if user_config.exists():
-            self._merge(self._load_toml(user_config))
+            self._merge(load_toml(user_config) or {})
 
         # Load project config (walk up from cwd)
         project_config = self._find_project_config()
         if project_config and project_config.exists():
-            self._merge(self._load_toml(project_config))
+            self._merge(load_toml(project_config) or {})
 
         # Apply environment variable overrides
         self._apply_env_overrides()
 
-    def _load_toml(self, path: Path) -> dict[str, Any]:
-        """Load TOML file."""
-        if tomllib is None:
-            return {}
-
-        try:
-            with open(path, "rb") as f:
-                return tomllib.load(f)
-        except (OSError, ValueError):
-            return {}
-
     def _find_project_config(self) -> Path | None:
         """Find project config by walking up from cwd."""
-        current = Path.cwd()
-        while current != current.parent:
-            config_path = current / self.config_dir / "config.toml"
-            if config_path.exists():
-                return config_path
-            current = current.parent
-        return None
+        marker = str(Path(self.config_dir) / "config.toml")
+        return walk_up(Path.cwd(), marker)
 
     def _merge(self, source: dict[str, Any]) -> None:
         """Deep merge source into config."""
-        for key, value in source.items():
-            if key in self._config and isinstance(self._config[key], dict) and isinstance(value, dict):
-                self._deep_merge(self._config[key], value)
-            else:
-                self._config[key] = value
-
-    def _deep_merge(self, target: dict[str, Any], source: dict[str, Any]) -> None:
-        """Recursively merge source into target."""
-        for key, value in source.items():
-            if key in target and isinstance(target[key], dict) and isinstance(value, dict):
-                self._deep_merge(target[key], value)
-            else:
-                target[key] = value
+        self._config = deep_merge(self._config, source)
 
     def _apply_env_overrides(self) -> None:
         """Apply environment variable overrides."""

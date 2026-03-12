@@ -21,14 +21,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Sequence
 
-import sys
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    try:
-        import tomli as tomllib  # type: ignore[no-redefine]
-    except ImportError:
-        tomllib = None  # type: ignore[assignment]
+from sniff._compat import tomllib
 
 
 class LockfileKind(Enum):

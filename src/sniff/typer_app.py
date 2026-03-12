@@ -8,6 +8,9 @@ Provides a drop-in replacement for ``typer.Typer`` that adds:
 - Built-in doctor/version/env commands
 
 Requires the ``cli`` extra: ``pip install sniff[cli]``
+
+Typer is imported lazily -- this module can be imported without triggering
+a typer/click/rich import chain.
 """
 
 from __future__ import annotations
@@ -17,52 +20,44 @@ import sys
 from pathlib import Path
 from typing import Any, Callable
 
-try:
-    import typer as base_typer
-    from typer import Option, Argument, Exit
-
-    _TYPER_AVAILABLE = True
-except ImportError:  # pragma: no cover
-    _TYPER_AVAILABLE = False
+# Typer is loaded lazily on first use
+_typer = None
+_TYPER_AVAILABLE: bool | None = None
 
 
-def _require_typer() -> None:
-    """Raise a clear error when typer is not installed."""
+def _get_typer():
+    """Import typer on first use."""
+    global _typer, _TYPER_AVAILABLE
+    if _TYPER_AVAILABLE is None:
+        try:
+            import typer as _t
+            _typer = _t
+            _TYPER_AVAILABLE = True
+        except ImportError:
+            _TYPER_AVAILABLE = False
     if not _TYPER_AVAILABLE:
         raise ImportError(
             "typer is required for sniff.Typer. "
             "Install it with: pip install sniff[cli]"
         )
+    return _typer
 
 
-class Typer(base_typer.Typer if _TYPER_AVAILABLE else object):  # type: ignore[misc]
+# Module-level __getattr__ for lazy Option, Argument, Exit access
+def __getattr__(name: str):  # noqa: N807
+    if name in ("Option", "Argument", "Exit"):
+        t = _get_typer()
+        val = getattr(t, name)
+        globals()[name] = val
+        return val
+    raise AttributeError(f"module 'sniff.typer_app' has no attribute {name!r}")
+
+
+class Typer:
     """Enhanced Typer with sniff detection and Tully integration.
 
-    A wrapper around ``typer.Typer`` that adds automatic environment
-    detection, optional experiment tracking, and built-in commands.
-
-    Parameters
-    ----------
-    name:
-        Application name (used in version output).
-    enable_tracking:
-        Enable Tully experiment tracking for all commands.
-    tully_db_path:
-        Path to the Tully SQLite database.
-    tully_experiment_name:
-        Experiment name for Tully runs.
-    auto_capture_env:
-        Automatically capture environment context on first access.
-    add_doctor_command:
-        Register a built-in ``doctor`` command.
-    add_version_command:
-        Register a built-in ``version`` command.
-    add_env_command:
-        Register a built-in ``env`` command.
-    project_version:
-        Version string shown by the ``version`` command.
-    **typer_kwargs:
-        Passed through to ``typer.Typer.__init__``.
+    Uses composition to wrap ``typer.Typer`` without requiring typer
+    to be imported at class definition time.
     """
 
     def __init__(
@@ -81,8 +76,8 @@ class Typer(base_typer.Typer if _TYPER_AVAILABLE else object):  # type: ignore[m
         project_version: str | None = None,
         **typer_kwargs: Any,
     ) -> None:
-        _require_typer()
-        super().__init__(**typer_kwargs)
+        t = _get_typer()
+        self._app = t.Typer(**typer_kwargs)
 
         self._name = name
         self._enable_tracking = enable_tracking
@@ -94,7 +89,7 @@ class Typer(base_typer.Typer if _TYPER_AVAILABLE else object):  # type: ignore[m
         self._project_version = project_version
 
         # Lazy-loaded state
-        self._context: Any | None = None  # ExecutionContext
+        self._context: Any | None = None
         self._tully_client: Any | None = None
         self._current_run_id: str | None = None
 
@@ -113,6 +108,20 @@ class Typer(base_typer.Typer if _TYPER_AVAILABLE else object):  # type: ignore[m
             self._add_version_command()
         if add_env_command:
             self._add_env_command()
+
+    # -- Proxy to underlying typer.Typer for compatibility --------------------
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        return self._app(*args, **kwargs)
+
+    def __getattr__(self, name: str) -> Any:
+        # Proxy attribute access to the underlying typer.Typer instance.
+        # This is only called for attributes not found on self via __dict__.
+        # Block dunder lookups to avoid infinite recursion, but allow
+        # single-underscore attrs (e.g. typer's _add_completion) to proxy.
+        if name.startswith("__") and name.endswith("__"):
+            raise AttributeError(name)
+        return getattr(self._app, name)
 
     # -- Lazy-loaded properties -----------------------------------------------
 
@@ -163,7 +172,6 @@ class Typer(base_typer.Typer if _TYPER_AVAILABLE else object):  # type: ignore[m
         from sniff.cli.errors import NotFoundError, DependencyError
         from sniff.cli.styles import print_error
 
-        # Find .sniff.toml
         spec_file = find_envspec()
         if not spec_file:
             if self._fail_fast:
@@ -173,11 +181,9 @@ class Typer(base_typer.Typer if _TYPER_AVAILABLE else object):  # type: ignore[m
                 )
             return
 
-        # Activate and validate
         activator = EnvironmentActivator.from_cwd()
         result = activator.activate()
 
-        # Fail fast if required tools missing
         if result.missing_tools:
             error_msg = f"Missing required dependencies: {', '.join(result.missing_tools)}"
             if self._fail_fast:
@@ -186,9 +192,16 @@ class Typer(base_typer.Typer if _TYPER_AVAILABLE else object):  # type: ignore[m
             else:
                 print_error(error_msg)
 
-        # Update environment for current process (this is key!)
+        # Path-like vars that should be prepended to existing values
+        _PREPEND_VARS = {"PATH", "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "PYTHONPATH", "PKG_CONFIG_PATH"}
+
         if result.env_vars:
-            os.environ.update(result.env_vars)
+            for key, value in result.env_vars.items():
+                if key in _PREPEND_VARS:
+                    current = os.environ.get(key, "")
+                    os.environ[key] = f"{value}:{current}" if current else value
+                else:
+                    os.environ[key] = value
 
     # -- Enhanced command decorator -------------------------------------------
 
@@ -200,41 +213,20 @@ class Typer(base_typer.Typer if _TYPER_AVAILABLE else object):  # type: ignore[m
         catch_errors: bool = True,
         **kwargs: Any,
     ) -> Any:
-        """Enhanced command decorator with optional tracking and error handling.
-
-        Parameters
-        ----------
-        track:
-            Enable Tully tracking for this command.  Defaults to the
-            app-level ``enable_tracking`` setting.
-        capture_env:
-            Capture environment before/after.  Defaults to the app-level
-            ``auto_capture_env`` setting.
-        catch_errors:
-            When ``True`` (the default), automatically catch
-            :class:`~sniff.cli.errors.SniffError` exceptions and display
-            them with :func:`~sniff.cli.styles.print_error` /
-            :func:`~sniff.cli.styles.print_info`, then exit with the
-            error's ``exit_code``.  Set to ``False`` to let exceptions
-            propagate normally.
-        *args, **kwargs:
-            Passed through to ``typer.Typer.command()``.
-        """
+        """Enhanced command decorator with optional tracking and error handling."""
         should_track = track if track is not None else self._enable_tracking
         should_capture = capture_env if capture_env is not None else self._auto_capture_env
 
-        base_decorator = super().command(*args, **kwargs)
+        base_decorator = self._app.command(*args, **kwargs)
 
         def enhanced_decorator(func: Callable[..., Any]) -> Callable[..., Any]:
             @functools.wraps(func)
             def wrapper(*inner_args: Any, **inner_kwargs: Any) -> Any:
                 ctx = self.context if should_capture else None
 
-                # Before hooks
                 for hook in self._before_hooks:
                     hook(ctx)
 
-                # Start tracking
                 run_id: str | None = None
                 if should_track:
                     run_id = self._start_tracking(func.__name__, self.context)
@@ -259,7 +251,8 @@ class Typer(base_typer.Typer if _TYPER_AVAILABLE else object):  # type: ignore[m
                             print_error(exc.message)
                             if exc.hint:
                                 print_info(f"Hint: {exc.hint}")
-                            raise Exit(exc.exit_code)
+                            t = _get_typer()
+                            raise t.Exit(exc.exit_code)
 
                     raise
                 finally:
@@ -288,7 +281,7 @@ class Typer(base_typer.Typer if _TYPER_AVAILABLE else object):  # type: ignore[m
                 client.log_artifact(self._current_run_id, name, path)
 
     def _get_tully_client(self) -> Any | None:
-        """Get or create the Tully client.  Returns None if tully is unavailable."""
+        """Get or create the Tully client."""
         if self._tully_client is None:
             try:
                 from tully import TullyClient  # type: ignore[import-untyped]
@@ -299,7 +292,7 @@ class Typer(base_typer.Typer if _TYPER_AVAILABLE else object):  # type: ignore[m
         return self._tully_client
 
     def _start_tracking(self, command_name: str, context: Any) -> str | None:
-        """Start a Tully tracking run.  Returns run_id or None."""
+        """Start a Tully tracking run."""
         client = self._get_tully_client()
         if client is None:
             return None
@@ -355,22 +348,3 @@ class Typer(base_typer.Typer if _TYPER_AVAILABLE else object):  # type: ignore[m
 
             run_env(self.context)
 
-    # -- Wrap with tracking (standalone helper) -------------------------------
-
-    def _wrap_with_tracking(self, func: Callable[..., Any]) -> Callable[..., Any]:
-        """Wrap a callable so it is automatically tracked via Tully."""
-
-        @functools.wraps(func)
-        def tracked(*args: Any, **kwargs: Any) -> Any:
-            run_id = self._start_tracking(func.__name__, self.context)
-            try:
-                result = func(*args, **kwargs)
-                if run_id:
-                    self._complete_tracking(run_id, "success")
-                return result
-            except Exception as exc:
-                if run_id:
-                    self._complete_tracking(run_id, "failed", error=str(exc))
-                raise
-
-        return tracked

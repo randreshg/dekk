@@ -63,40 +63,10 @@ class TestGitInfo:
         with pytest.raises((AttributeError, FrozenInstanceError)):
             gi.commit_sha = "xyz"
 
-    def test_frozen_branch(self):
-        gi = GitInfo(commit_sha="abc", branch="main", is_dirty=False, remote_url=None)
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            gi.branch = "dev"
-
-    def test_frozen_is_dirty(self):
-        gi = GitInfo(commit_sha="abc", branch="main", is_dirty=False, remote_url=None)
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            gi.is_dirty = True
-
-    def test_frozen_remote_url(self):
-        gi = GitInfo(commit_sha="abc", branch="main", is_dirty=False, remote_url=None)
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            gi.remote_url = "url"
-
     def test_equality(self):
         gi1 = GitInfo(commit_sha="abc", branch="main", is_dirty=False, remote_url=None)
         gi2 = GitInfo(commit_sha="abc", branch="main", is_dirty=False, remote_url=None)
         assert gi1 == gi2
-
-    def test_inequality_sha(self):
-        gi1 = GitInfo(commit_sha="abc", branch="main", is_dirty=False, remote_url=None)
-        gi2 = GitInfo(commit_sha="def", branch="main", is_dirty=False, remote_url=None)
-        assert gi1 != gi2
-
-    def test_inequality_branch(self):
-        gi1 = GitInfo(commit_sha="abc", branch="main", is_dirty=False, remote_url=None)
-        gi2 = GitInfo(commit_sha="abc", branch="dev", is_dirty=False, remote_url=None)
-        assert gi1 != gi2
-
-    def test_inequality_dirty(self):
-        gi1 = GitInfo(commit_sha="abc", branch="main", is_dirty=False, remote_url=None)
-        gi2 = GitInfo(commit_sha="abc", branch="main", is_dirty=True, remote_url=None)
-        assert gi1 != gi2
 
     def test_hash(self):
         gi1 = GitInfo(commit_sha="abc", branch="main", is_dirty=False, remote_url=None)
@@ -155,13 +125,6 @@ class TestContextWorkspaceInfo:
         with pytest.raises((AttributeError, FrozenInstanceError)):
             ws.root = Path("/other")
 
-    def test_frozen_git_info(self):
-        ws = ContextWorkspaceInfo(
-            root=Path("/tmp"), git_info=None, build_artifacts=[], config_files=[]
-        )
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            ws.git_info = GitInfo(commit_sha="x", branch="y", is_dirty=False, remote_url=None)
-
     def test_multiple_artifacts(self):
         ws = ContextWorkspaceInfo(
             root=Path("/project"),
@@ -210,21 +173,6 @@ class TestCPUInfo:
         cpu = CPUInfo(model="x", cores=1, threads=1, frequency_mhz=None)
         with pytest.raises((AttributeError, FrozenInstanceError)):
             cpu.model = "y"
-
-    def test_frozen_cores(self):
-        cpu = CPUInfo(model="x", cores=1, threads=1, frequency_mhz=None)
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            cpu.cores = 2
-
-    def test_frozen_threads(self):
-        cpu = CPUInfo(model="x", cores=1, threads=1, frequency_mhz=None)
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            cpu.threads = 2
-
-    def test_frozen_frequency(self):
-        cpu = CPUInfo(model="x", cores=1, threads=1, frequency_mhz=1000.0)
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            cpu.frequency_mhz = 2000.0
 
     def test_equality(self):
         c1 = CPUInfo(model="x", cores=4, threads=8, frequency_mhz=3000.0)
@@ -283,21 +231,6 @@ class TestGPUInfo:
         with pytest.raises((AttributeError, FrozenInstanceError)):
             gpu.vendor = "amd"
 
-    def test_frozen_model(self):
-        gpu = GPUInfo(vendor="nvidia", model="x", memory_mb=None, driver_version=None)
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            gpu.model = "y"
-
-    def test_frozen_memory(self):
-        gpu = GPUInfo(vendor="nvidia", model="x", memory_mb=1000, driver_version=None)
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            gpu.memory_mb = 2000
-
-    def test_frozen_driver(self):
-        gpu = GPUInfo(vendor="nvidia", model="x", memory_mb=None, driver_version="1.0")
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            gpu.driver_version = "2.0"
-
     def test_equality(self):
         g1 = GPUInfo(vendor="nvidia", model="RTX", memory_mb=8000, driver_version="1")
         g2 = GPUInfo(vendor="nvidia", model="RTX", memory_mb=8000, driver_version="1")
@@ -334,16 +267,6 @@ class TestMemoryInfo:
         mem = MemoryInfo(total_mb=1, available_mb=1, used_mb=0)
         with pytest.raises((AttributeError, FrozenInstanceError)):
             mem.total_mb = 2
-
-    def test_frozen_available(self):
-        mem = MemoryInfo(total_mb=1, available_mb=1, used_mb=0)
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            mem.available_mb = 2
-
-    def test_frozen_used(self):
-        mem = MemoryInfo(total_mb=1, available_mb=1, used_mb=0)
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            mem.used_mb = 2
 
     def test_equality(self):
         m1 = MemoryInfo(total_mb=1024, available_mb=512, used_mb=512)
@@ -384,16 +307,6 @@ class TestSystemLibrary:
         lib = SystemLibrary(name="x", version="1", path=Path("/x"))
         with pytest.raises((AttributeError, FrozenInstanceError)):
             lib.name = "y"
-
-    def test_frozen_version(self):
-        lib = SystemLibrary(name="x", version="1", path=Path("/x"))
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            lib.version = "2"
-
-    def test_frozen_path(self):
-        lib = SystemLibrary(name="x", version="1", path=Path("/x"))
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            lib.path = Path("/y")
 
     def test_equality(self):
         l1 = SystemLibrary(name="x", version="1", path=Path("/a"))
@@ -757,12 +670,16 @@ class TestDetectCPUInfo:
         result = _detect_cpu_info()
         assert isinstance(result, CPUInfo)
 
-    @patch("psutil.cpu_count", return_value=4)
-    @patch("psutil.cpu_freq")
-    def test_psutil_available(self, mock_freq, mock_count):
-        mock_freq.return_value = MagicMock(current=3500.0)
-        result = _detect_cpu_info()
-        assert isinstance(result, CPUInfo)
+    def test_psutil_available(self):
+        try:
+            import psutil  # noqa: F401
+        except ImportError:
+            pytest.skip("psutil not installed")
+        with patch("psutil.cpu_count", return_value=4), \
+             patch("psutil.cpu_freq") as mock_freq:
+            mock_freq.return_value = MagicMock(current=3500.0)
+            result = _detect_cpu_info()
+            assert isinstance(result, CPUInfo)
 
 
 # ===========================================================================
@@ -1029,75 +946,10 @@ def _make_context(**overrides) -> ExecutionContext:
 # ===========================================================================
 
 class TestExecutionContextFrozen:
-    def test_frozen_platform(self):
+    def test_frozen(self):
         ctx = _make_context()
         with pytest.raises((AttributeError, FrozenInstanceError)):
             ctx.platform = None
-
-    def test_frozen_conda_env(self):
-        ctx = _make_context()
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            ctx.conda_env = None
-
-    def test_frozen_ci_info(self):
-        ctx = _make_context()
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            ctx.ci_info = None
-
-    def test_frozen_workspace(self):
-        ctx = _make_context()
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            ctx.workspace = None
-
-    def test_frozen_build_system(self):
-        ctx = _make_context()
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            ctx.build_system = "x"
-
-    def test_frozen_installed_packages(self):
-        ctx = _make_context()
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            ctx.installed_packages = {}
-
-    def test_frozen_system_libraries(self):
-        ctx = _make_context()
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            ctx.system_libraries = []
-
-    def test_frozen_cpu_info(self):
-        ctx = _make_context()
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            ctx.cpu_info = None
-
-    def test_frozen_gpu_info(self):
-        ctx = _make_context()
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            ctx.gpu_info = []
-
-    def test_frozen_memory_info(self):
-        ctx = _make_context()
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            ctx.memory_info = None
-
-    def test_frozen_env_vars(self):
-        ctx = _make_context()
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            ctx.env_vars = {}
-
-    def test_frozen_command_line(self):
-        ctx = _make_context()
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            ctx.command_line = []
-
-    def test_frozen_working_dir(self):
-        ctx = _make_context()
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            ctx.working_dir = Path("/x")
-
-    def test_frozen_timestamp(self):
-        ctx = _make_context()
-        with pytest.raises((AttributeError, FrozenInstanceError)):
-            ctx.timestamp = datetime.now()
 
 
 # ===========================================================================

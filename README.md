@@ -1,344 +1,383 @@
 # sniff
 
-[![Tests](https://github.com/randreshg/sniff/workflows/Tests/badge.svg)](https://github.com/randreshg/sniff/actions)
-[![PyPI version](https://img.shields.io/pypi/v/sniff?color=blue)](https://pypi.org/project/sniff/)
-[![Python](https://img.shields.io/pypi/pyversions/sniff.svg)](https://pypi.org/project/sniff/)
-[![codecov](https://codecov.io/gh/randreshg/sniff/branch/main/graph/badge.svg)](https://codecov.io/gh/randreshg/sniff)
+**One config. Zero activation. Any project.**
 
-**sniff: Environment detection + CLI framework for Python**
+sniff detects your project's environment, activates it, and generates
+a self-contained wrapper binary. No manual setup. No `conda activate`.
+No PATH wrangling. Just works.
 
-Detect your development environment — platform, Python envs, toolchains, hardware — then build polished CLIs on top of it. Sniff is both a **detection library** (passive, no side effects) and a **CLI framework** (Rich + Typer, styling, errors, progress, config).
+## The Problem
 
-**[Documentation](https://sniff.readthedocs.io/)** | **[Source](https://github.com/randreshg/sniff)** | **[PyPI](https://pypi.org/project/sniff/)**
+Every project needs environment setup: conda environments, PATH entries,
+environment variables, tool versions. Developers manually activate things.
+AI agents waste thousands of tokens describing setup steps. CI pipelines
+duplicate configuration.
 
----
+## The Solution
 
-### What's New in v3.0.0
+Declare your environment once in `.sniff.toml`. sniff handles the rest.
 
-sniff 3.0 graduates from a detection library into a full **CLI framework**. Everything you need to build production-quality command-line tools -- styling, structured errors, progress indicators, multi-format output, and configuration management -- ships as a cohesive toolkit built on Rich and Typer.
+```toml
+[project]
+name = "myapp"
 
-- **`sniff.cli.styles`** -- 12 semantic output functions (`print_success`, `print_error`, `print_table`, ...) covering 89% of real-world CLI output patterns
-- **`sniff.cli.errors`** -- Structured error hierarchy with exit codes, hints, and JSON/YAML serialization
-- **`sniff.cli.progress`** -- Progress bars, spinners, and multi-step `StatusReporter` for long-running operations
-- **`sniff.cli.output`** -- `OutputFormatter` with TABLE, JSON, YAML, and TEXT output modes plus quiet/verbose support
-- **`sniff.cli.config`** -- `ConfigManager` with TOML support and multi-tier precedence (env vars > project > user > defaults)
-- **`sniff.cli.context`** -- `CLIContext` dataclass for shared command state via `typer.Context.obj`
-- **Zero-dependency core preserved** -- CLI features are optional via `pip install sniff[cli]`
+[conda]
+name = "myapp"
+file = "environment.yaml"
 
----
+[tools]
+python = { command = "python", version = ">=3.10" }
+cmake  = { command = "cmake", version = ">=3.20" }
+cargo  = { command = "cargo" }
+
+[env]
+MLIR_DIR = "{conda}/lib/cmake/mlir"
+
+[paths]
+bin = ["{project}/bin"]
+```
+
+## Three Pillars
+
+### 1. Detect
+
+Zero-dependency detection of your entire development environment:
+
+- **Platform**: OS, architecture, Linux distro, WSL, containers
+- **Package managers**: conda/mamba, with environment validation
+- **Build systems**: 25+ (Cargo, CMake, npm, Poetry, Maven, Gradle, ...)
+- **Compilers**: GCC, Clang, Rust, Go with versions and targets
+- **CI providers**: 14 (GitHub Actions, GitLab CI, Jenkins, ...)
+- **Shells**: 9 types (bash, zsh, fish, tcsh, PowerShell, ...)
+- **Workspaces**: Monorepo detection with dependency graphs
+
+```python
+from sniff import PlatformDetector, CondaDetector, BuildSystemDetector
+
+platform = PlatformDetector().detect()
+# PlatformInfo(os='Linux', arch='x86_64', distro='ubuntu', ...)
+
+conda = CondaDetector().find_environment("myenv")
+# CondaEnvironment(name='myenv', prefix=Path('/opt/conda/envs/myenv'))
+
+builds = BuildSystemDetector().detect(Path("."))
+# [BuildSystemInfo(system=BuildSystem.CARGO, root=Path("."), ...)]
+```
+
+### 2. Activate
+
+Read `.sniff.toml`, resolve conda paths, set environment variables, validate tools:
+
+```python
+from sniff import EnvironmentActivator
+
+activator = EnvironmentActivator.from_cwd()
+result = activator.activate()
+# ActivationResult(env_vars={'CONDA_PREFIX': '...', 'MLIR_DIR': '...'}, ...)
+```
+
+Or from the CLI:
+```
+$ eval $(sniff activate)
+```
+
+### 3. Wrap
+
+Generate a self-contained binary that bakes in the full environment.
+**This is what makes sniff zero-friction.**
+
+```
+$ sniff wrap myapp ./bin/myapp
+  Generated myapp -> ~/.local/bin/myapp
+
+$ myapp doctor    # just works -- no activation needed
+```
+
+The wrapper is a simple shell script with hardcoded paths:
+```sh
+#!/bin/sh
+export CONDA_PREFIX="/home/user/miniforge3/envs/myapp"
+export PATH="/home/user/miniforge3/envs/myapp/bin:$PATH"
+export MLIR_DIR="/home/user/miniforge3/envs/myapp/lib/cmake/mlir"
+exec "/home/user/miniforge3/envs/myapp/bin/python3" \
+     "/home/user/projects/myapp/tools/cli.py" "$@"
+```
+
+From Python:
+```python
+from sniff import WrapperGenerator
+
+result = WrapperGenerator.install_from_spec(
+    spec_file=Path(".sniff.toml"),
+    target=Path("tools/cli.py"),
+    python=Path("/opt/conda/envs/myapp/bin/python3"),
+    name="myapp",
+)
+```
 
 ## Installation
 
-```bash
-# Core library (zero dependencies, Python 3.10+)
-pip install sniff
-
-# With CLI framework support (adds typer + rich)
-pip install sniff[cli]
-
-# With experiment tracking (adds tully)
-pip install sniff[tracking]
-
-# Everything
-pip install sniff[all]
 ```
-
-The `[cli]` extra is required for `sniff.cli.*`, `sniff.Typer`, and all Rich-based output. The core detection API remains dependency-free.
-
----
-
-## Quick Start
-
-### Detect Your Environment
-
-```python
-import sniff
-
-platform = sniff.PlatformDetector().detect()
-print(f"{platform.os} {platform.arch}")  # Linux x86_64
-print(f"WSL: {platform.is_wsl}")         # False
+pip install sniff           # Core detection (zero dependencies)
+pip install sniff[cli]      # + CLI framework (Rich + Typer)
+pip install sniff[all]      # + experiment tracking (Tully)
 ```
-
-### Build a CLI with Styled Output
-
-```python
-from sniff.cli.styles import print_success, print_error, print_warning, print_header
-
-print_header("Build Pipeline", subtitle="v3.0.0")
-print_success("Compiled 42 modules")
-print_warning("3 deprecation warnings")
-print_error("Failed to link libfoo.so")
-```
-
-### Multi-Format Output (Table / JSON / YAML)
-
-```python
-from sniff.cli.output import OutputFormatter, OutputFormat
-
-fmt = OutputFormatter(format=OutputFormat.TABLE, verbose=True)
-fmt.print_result(
-    {"name": "myapp", "version": "1.2.0", "env": "conda:ml"},
-    title="Package Info",
-)
-fmt.success("Environment validated")
-
-# Switch to JSON for piping to other tools
-fmt_json = OutputFormatter(format=OutputFormat.JSON)
-fmt_json.print_result({"name": "myapp", "version": "1.2.0"})
-# {"name": "myapp", "version": "1.2.0"}
-```
-
-### Progress Indicators
-
-```python
-from sniff.cli.progress import progress_bar, spinner, StatusReporter
-
-# Deterministic progress bar
-with progress_bar("Compiling modules", total=100) as progress:
-    task = progress.tasks[0]
-    for i in range(100):
-        progress.update(task.id, advance=1)
-
-# Indeterminate spinner
-with spinner("Resolving dependencies..."):
-    resolve_all()
-
-# Multi-step status reporting
-reporter = StatusReporter("Deployment")
-reporter.start("Checking prerequisites")
-reporter.success("All prerequisites met")
-reporter.start("Uploading artifacts")
-reporter.warning("Slow network detected")
-reporter.success("Upload complete")
-```
-
-### Error Handling with SniffError
-
-```python
-from sniff.cli.errors import NotFoundError, SniffError
-from sniff.cli.styles import print_error, print_info
-
-try:
-    raise NotFoundError(
-        "Conda environment 'ml' not found",
-        hint="Run 'conda create -n ml' to create it",
-        searched_paths=["/opt/conda/envs", "~/.conda/envs"],
-    )
-except SniffError as exc:
-    print_error(exc.message)
-    if exc.hint:
-        print_info(f"Hint: {exc.hint}")
-    raise SystemExit(exc.exit_code)
-```
-
-All errors carry an `exit_code`, an optional `hint`, and a `to_dict()` method for structured output.
-
-### ConfigManager
-
-```python
-from sniff.cli.config import ConfigManager
-
-# Loads from ~/.myapp/config.toml, .myapp/config.toml, and env vars
-cfg = ConfigManager("myapp", defaults={"database": {"path": "db.sqlite"}})
-
-print(cfg.get("database.path"))    # db.sqlite
-cfg.set("database.path", "/data/prod.sqlite")
-cfg.save()                         # writes to ~/.myapp/config.toml
-```
-
-Precedence (highest wins): environment variables (`MYAPP_DATABASE_PATH`) > project config (`.myapp/config.toml`) > user config (`~/.myapp/config.toml`) > built-in defaults.
-
----
 
 ## CLI Framework
 
-The `sniff.cli` package provides everything needed to build consistent, production-quality CLIs.
-
-### sniff.Typer -- Enhanced Typer Wrapper
-
-Drop-in replacement for `typer.Typer` with automatic environment detection, session hooks, and built-in commands.
+sniff includes a production-quality CLI framework built on Rich and Typer.
+Use it as the foundation for your own CLI tools:
 
 ```python
-import sniff
+from sniff import Typer, Option
 
-app = sniff.Typer(
+app = Typer(
     name="myapp",
-    project_version="1.0.0",
-    add_version_command=True,
-    add_doctor_command=True,
-    add_env_command=True,
+    auto_activate=True,      # auto-setup from .sniff.toml
+    add_doctor_command=True,  # built-in health check
+    add_version_command=True, # built-in version info
 )
 
 @app.command()
-def build(target: str = "release"):
+def build(release: bool = Option(True, "--release/--debug")):
     """Build the project."""
-    from sniff.cli.styles import print_success
-    print_success(f"Built target: {target}")
-
-    # Access detected environment
-    print(f"Platform: {app.platform.os}")
-    if app.conda_env:
-        print(f"Conda: {app.conda_env.name}")
+    ...
 
 if __name__ == "__main__":
     app()
 ```
 
-Built-in commands (opt-in): `doctor` (health checks), `version` (version + environment), `env` (full environment dump).
-
-### CLIContext -- Shared Command State
+### Styled output
 
 ```python
-import typer
-from sniff.cli.context import CLIContext
-from sniff.cli.config import ConfigManager
-from sniff.cli.output import OutputFormatter, OutputFormat
+from sniff import print_success, print_error, print_warning, print_info
+from sniff import print_header, print_step, print_table
 
-app = typer.Typer()
-
-@app.callback()
-def main(ctx: typer.Context, verbose: bool = False, output: str = "table"):
-    ctx.obj = CLIContext(
-        config=ConfigManager("myapp"),
-        output=OutputFormatter(format=OutputFormat(output), verbose=verbose),
-        verbose=verbose,
-    )
-
-@app.command()
-def status(ctx: typer.Context):
-    cli: CLIContext = ctx.obj
-    cli.output.print_result({"status": "healthy"}, title="System Status")
+print_header("Building MyApp")
+print_step("Compiling...")
+print_success("Build complete!")
+print_warning("Debug symbols not stripped")
 ```
 
-### Styling Reference
-
-| Function | Purpose |
-|---|---|
-| `print_success(msg)` | Green checkmark + message |
-| `print_error(msg)` | Red X + message (stderr) |
-| `print_warning(msg)` | Warning icon + message (stderr) |
-| `print_info(msg)` | Info icon + message |
-| `print_debug(msg)` | Dimmed message |
-| `print_header(title, subtitle)` | Bordered panel |
-| `print_step(msg, step_num, total)` | Step indicator `[1/5]` |
-| `print_section(title)` | Section divider |
-| `print_table(title, headers, rows)` | Rich table |
-| `print_numbered_list(items)` | Numbered list |
-| `print_next_steps(steps)` | "Next steps:" block |
-
-### Error Hierarchy
-
-| Exception | Exit Code | Use Case |
-|---|---|---|
-| `SniffError` | 1 | Base class |
-| `ValidationError` | 2 | Invalid input or data |
-| `NotFoundError` | 3 | Missing resource |
-| `PermissionError` | 4 | Insufficient permissions |
-| `TimeoutError` | 5 | Operation timed out |
-| `ConfigError` | 6 | Bad configuration |
-| `DependencyError` | 7 | Missing dependency |
-| `RuntimeError` | 8 | Execution failure |
-
----
-
-## Environment Detection
-
-### Core Detection (Tier 1)
-
-- **Platform detection** -- OS, architecture, Linux distro, WSL, containers, CI providers
-- **Python environments** -- conda, venv, virtualenv, poetry, pyenv, uv, pipenv
-- **Dependency checking** -- verify CLI tool availability and version constraints
-- **Workspace detection** -- monorepo/workspace structure detection
-- **Configuration management** -- TOML config with layered precedence
-- **Remediation framework** -- protocol-based fix system for detected issues
-
-### Extended Detection (Tier 2)
-
-- **Path management** -- project root detection, OS-aware user directories, tool/library resolution
-- **Build system detection** -- Cargo, CMake, Make, npm, Poetry, Go, and 20+ more
-- **Compiler detection** -- GCC, Clang, Rust, Go with version and target triple extraction
-- **Build cache detection** -- sccache, ccache, Turborepo, Nx, Bazel
-- **Shell integration** -- detection, activation scripts, tab completions, prompt helpers
-- **Library path management** -- platform-aware LD_LIBRARY_PATH / DYLD_LIBRARY_PATH
-- **Toolchain profiles** -- composable environment setup for CMake/LLVM, Conda, custom toolchains
-- **Version management** -- semver parsing, constraint validation, range matching
-- **Environment validation** -- check tools, directories, env vars with structured reports
-- **CI build hints** -- parallelism, caching, and output recommendations for CI runners
-
-### Frameworks (Tier 3)
-
-- **Diagnostic framework** -- extensible health checks with pluggable formatters (text, JSON, Markdown)
-- **Command registry** -- passive command/plugin registry with dependency resolution
-- **Project scaffolding** -- project type detection, template system, setup script generation
-
-### ExecutionContext
-
-Capture your entire execution environment in a single call with fingerprinting and diffing for reproducibility.
+### Progress indicators
 
 ```python
-from sniff import ExecutionContext
+from sniff import spinner, progress_bar
 
-ctx = ExecutionContext.capture()
-print(ctx.platform)           # PlatformInfo(os='Linux', arch='x86_64', ...)
-print(ctx.fingerprint())      # sha256 reproducibility hash
+with spinner("Installing dependencies..."):
+    install_deps()
 
-# Later, compare environments
-ctx2 = ExecutionContext.capture()
-diff = ctx.diff(ctx2)
-if not diff.is_compatible():
-    print(diff.summary())
+with progress_bar("Processing", total=100) as bar:
+    for item in items:
+        process(item)
+        bar.advance()
 ```
 
-### Design Principles
+### Structured errors
 
-- **Type-safe** -- Frozen dataclasses with full type hints
-- **Zero dependencies** -- Core is stdlib only (Python 3.10+)
-- **Optional extras** -- CLI features via `sniff[cli]`, tracking via `sniff[tracking]`
-- **Library-first** -- Pure Python API, build your own CLI
+```python
+from sniff import NotFoundError, DependencyError
 
----
+raise NotFoundError(
+    "Compiler not found",
+    hint="Run: apxm install",
+)
+# Displays styled error with hint, exits with code 3
+```
+
+### Multi-format output
+
+```python
+from sniff import OutputFormatter, OutputFormat
+
+fmt = OutputFormatter(format=OutputFormat.JSON)
+fmt.print_result({"status": "ok", "version": "1.0"})
+```
+
+### LLM-friendly subprocess runner
+
+```python
+from sniff import run_logged
+
+result = run_logged(
+    ["cargo", "build", "--release"],
+    log_path=Path(".logs/build.log"),
+    spinner_text="Building...",
+)
+# Shows spinner, captures output to log, prints path for agents to read
+```
+
+## .sniff.toml Reference
+
+### [project] -- required
+
+```toml
+[project]
+name = "myapp"
+description = "Optional description"
+```
+
+### [conda] -- conda/mamba environment
+
+```toml
+[conda]
+name = "myapp"
+file = "environment.yaml"
+```
+
+### [tools] -- required CLI tools
+
+```toml
+[tools]
+python = { command = "python", version = ">=3.10" }
+cmake  = { command = "cmake", version = ">=3.20" }
+ninja  = { command = "ninja" }
+cargo  = { command = "cargo", optional = true }
+```
+
+### [env] -- environment variables
+
+```toml
+[env]
+MLIR_DIR = "{conda}/lib/cmake/mlir"
+LLVM_DIR = "{conda}/lib/cmake/llvm"
+MY_HOME  = "{project}"
+```
+
+Placeholders: `{project}` (project root), `{conda}` (conda prefix), `{home}` (user home)
+
+### [paths] -- PATH prepends
+
+```toml
+[paths]
+bin = ["{project}/bin", "{project}/target/release"]
+```
+
+## Examples by Language
+
+### Python + Conda
+```toml
+[project]
+name = "ml-pipeline"
+
+[conda]
+name = "ml-pipeline"
+file = "environment.yaml"
+
+[tools]
+python = { command = "python", version = ">=3.10" }
+jupyter = { command = "jupyter" }
+
+[env]
+PYTHONPATH = "{project}/src"
+```
+
+### Rust
+```toml
+[project]
+name = "my-rust-app"
+
+[tools]
+cargo = { command = "cargo", version = ">=1.70" }
+rustc = { command = "rustc" }
+
+[paths]
+bin = ["{project}/target/release"]
+```
+
+### C++ with CMake
+```toml
+[project]
+name = "physics-sim"
+
+[conda]
+name = "physics-sim"
+file = "environment.yaml"
+
+[tools]
+cmake = { command = "cmake", version = ">=3.20" }
+ninja = { command = "ninja" }
+clang = { command = "clang", version = ">=17" }
+
+[env]
+CMAKE_PREFIX_PATH = "{conda}"
+```
+
+### Node.js
+```toml
+[project]
+name = "web-app"
+
+[tools]
+node = { command = "node", version = ">=18" }
+npm  = { command = "npm" }
+
+[env]
+NODE_ENV = "development"
+```
+
+### Go
+```toml
+[project]
+name = "api-server"
+
+[tools]
+go = { command = "go", version = ">=1.21" }
+
+[env]
+GOPATH = "{home}/go"
+
+[paths]
+bin = ["{home}/go/bin"]
+```
+
+## For AI Agents
+
+sniff reduces environment setup from 2000-5000 tokens to ~150 tokens:
+
+**Before** (what agents had to explain):
+> Check if conda is installed. If not, install miniforge. Create environment
+> with `conda env create -f environment.yaml`. Activate with `conda activate
+> myenv`. Set MLIR_DIR to the conda prefix. Export LD_LIBRARY_PATH...
+
+**After**:
+> Run `myapp install`. The wrapper handles everything.
+
+## Detection API Summary
+
+| Module | What it detects |
+|--------|----------------|
+| `PlatformDetector` | OS, arch, distro, WSL, containers, package manager |
+| `CondaDetector` | Conda/mamba environments, packages, validation |
+| `BuildSystemDetector` | 25+ build systems with targets and workspaces |
+| `CompilerDetector` | GCC, Clang, Rust, Go with versions and targets |
+| `CIDetector` | 14 CI providers with git metadata and runner info |
+| `ShellDetector` | 9 shell types with config files and capabilities |
+| `WorkspaceDetector` | Monorepos with dependency graphs and build order |
+| `DependencyChecker` | CLI tool versions against constraints |
+| `VersionManagerDetector` | pyenv, nvm, asdf, rbenv, rustup |
+| `LockfileParser` | 7 lockfile formats across ecosystems |
+
+## Architecture
+
+sniff is organized in three tiers:
+
+- **Tier 1 (Core)**: Zero dependencies. Platform, conda, deps, workspace, config, remediation.
+- **Tier 2 (Extended)**: Paths, build systems, compilers, shells, toolchains, versions, CI.
+- **Tier 3 (Frameworks)**: Diagnostics, commands, scaffolding.
+
+The CLI framework requires `sniff[cli]` (Typer + Rich).
 
 ## Documentation
 
-- [Getting Started](docs/getting-started.md) -- Quick introduction
-- [API Reference](docs/api/index.md) -- Complete API docs for all modules
-- [Architecture](docs/architecture.md) — How sniff is organized
-
-### CLI Framework (New in 3.0)
-
-- [ExecutionContext API](docs/EXECUTIONCONTEXT.md) -- Complete environment capture
-- [sniff.Typer Guide](docs/TYPER_INTEGRATION.md) -- CLI framework integration
-- [Migration Guide](docs/MIGRATION_2.1.md) -- Upgrading from earlier versions
-- [Examples](docs/examples.md) — APXM, Tully, and more
-
-### API Reference by Module
-
-**Core:** [detect](docs/api/detect.md) | [deps](docs/api/deps.md) | [conda](docs/api/conda.md) | [ci](docs/api/ci.md) | [workspace](docs/api/workspace.md) | [tools](docs/api/tools.md) | [config](docs/api/config.md) | [remediate](docs/api/remediate.md)
-
-**Extended:** [paths](docs/api/paths.md) | [env](docs/api/env.md) | [libpath](docs/api/libpath.md) | [toolchain](docs/api/toolchain.md) | [validate](docs/api/validate.md) | [build](docs/api/build.md) | [compiler](docs/api/compiler.md) | [cache](docs/api/cache.md) | [ci_build](docs/api/ci_build.md) | [version](docs/api/version.md) | [shell](docs/api/shell.md)
-
-**Frameworks:** [diagnostic](docs/api/diagnostic.md) | [diagnostic_checks](docs/api/diagnostic_checks.md) | [commands](docs/api/commands.md) | [scaffold](docs/api/scaffold.md)
-
----
-
-## Real-World Usage
-
-- **[APXM](https://github.com/yourorg/apxm)** -- MLIR compiler for agent workflows
-- **[Tully](https://github.com/yourorg/tully)** -- Agent framework for domain workflows
-
-*Using sniff? [Let us know!](https://github.com/randreshg/sniff/discussions)*
-
----
-
-## Contributing
-
-Contributions welcome! See **[contributing.md](docs/contributing.md)** for guidelines.
-
-- [Report a bug](https://github.com/randreshg/sniff/issues/new?template=bug_report.md)
-- [Request a feature](https://github.com/randreshg/sniff/issues/new?template=feature_request.md)
-
----
+- [Getting Started](docs/getting-started.md)
+- [Architecture](docs/architecture.md)
+- [.sniff.toml Specification](docs/spec.md)
+- [Wrapper Generation](docs/wrapper.md)
+- [Examples](docs/examples.md)
+- [Token Savings for AI](docs/token_savings.md)
+- [Contributing](docs/contributing.md)
 
 ## License
 
-MIT License -- see **[LICENSE](LICENSE)** for details.
+MIT

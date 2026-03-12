@@ -14,18 +14,10 @@ Tier precedence (highest to lowest):
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
 from typing import Any
 
-# TOML reading: use stdlib tomllib on 3.11+, fall back to tomli
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    try:
-        import tomli as tomllib  # type: ignore[no-redef]
-    except ImportError:
-        tomllib = None  # type: ignore[assignment]
+from sniff._compat import tomllib, load_toml, deep_merge, walk_up
 
 # TOML writing: optional dependency from sniff[cli]
 try:
@@ -83,15 +75,15 @@ class ConfigManager:
         # User config: ~/.{app_name}/config.toml
         user_config = self._user_config_path()
         if user_config.exists():
-            _deep_merge(config, _load_toml(user_config))
+            config = deep_merge(config, load_toml(user_config) or {})
 
         # Project config: .{app_name}/config.toml (search ancestors)
         project_config = self._find_project_config()
         if project_config is not None:
-            _deep_merge(config, _load_toml(project_config))
+            config = deep_merge(config, load_toml(project_config) or {})
 
         # Environment variables: {APP_NAME}_{KEY}
-        _deep_merge(config, self._load_env_vars())
+        config = deep_merge(config, self._load_env_vars())
 
         self._config = config
 
@@ -178,16 +170,8 @@ class ConfigManager:
         Returns:
             Path to the project config, or ``None`` if not found.
         """
-        current = Path.cwd()
-        while True:
-            config_path = current / f".{self.app_name}" / self.config_file
-            if config_path.exists():
-                return config_path
-            parent = current.parent
-            if parent == current:
-                break
-            current = parent
-        return None
+        marker = str(Path(f".{self.app_name}") / self.config_file)
+        return walk_up(Path.cwd(), marker)
 
     def _load_env_vars(self) -> dict[str, Any]:
         """Load config overrides from environment variables.
@@ -219,26 +203,6 @@ class ConfigManager:
 # ------------------------------------------------------------------
 
 
-def _load_toml(path: Path) -> dict[str, Any]:
-    """Load a TOML file, returning an empty dict on error."""
-    if tomllib is None:
-        return {}
-    try:
-        with open(path, "rb") as f:
-            return tomllib.load(f)
-    except (OSError, ValueError):
-        return {}
-
-
-def _deep_merge(target: dict[str, Any], source: dict[str, Any]) -> None:
-    """Recursively merge *source* into *target* in place."""
-    for key, value in source.items():
-        if key in target and isinstance(target[key], dict) and isinstance(value, dict):
-            _deep_merge(target[key], value)
-        else:
-            target[key] = value
-
-
 def _deep_copy(d: dict[str, Any]) -> dict[str, Any]:
     """Simple deep copy for nested dicts of plain values."""
     result: dict[str, Any] = {}
@@ -250,3 +214,25 @@ def _deep_copy(d: dict[str, Any]) -> dict[str, Any]:
         else:
             result[key] = value
     return result
+
+
+def _load_toml(path: Path) -> dict[str, Any]:
+    """Load a TOML file, returning an empty dict on error.
+
+    Thin wrapper kept for backward compatibility; delegates to
+    :func:`sniff._compat.load_toml`.
+    """
+    if tomllib is None:
+        return {}
+    return load_toml(path) or {}
+
+
+def _deep_merge(target: dict[str, Any], source: dict[str, Any]) -> None:
+    """Recursively merge *source* into *target* in place.
+
+    Thin wrapper kept for backward compatibility; delegates to
+    :func:`sniff._compat.deep_merge`.
+    """
+    merged = deep_merge(target, source)
+    target.clear()
+    target.update(merged)

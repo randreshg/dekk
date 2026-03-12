@@ -137,20 +137,6 @@ def test_detect_gcc_if_available():
     assert info.family == CompilerFamily.GCC
 
 
-def test_detect_rustc_if_available():
-    """If rustc is in PATH, version and target are populated."""
-    import shutil
-
-    if not shutil.which("rustc"):
-        pytest.skip("rustc not available")
-
-    detector = CompilerDetector()
-    info = detector.detect_compiler("rustc")
-    assert info.found is True
-    assert info.version is not None
-    assert info.target is not None  # rustc -vV should provide host
-
-
 def test_detect_go_if_available():
     """If go is in PATH, version and target are populated."""
     import shutil

@@ -1,384 +1,165 @@
 """
-sniff - Sniff out your Python development environment.
+sniff - One config. Zero activation. Any project.
 
-Like a packet sniffer for networks, sniff detects what's in your dev environment
-through passive observation - no side effects, no changes, just answers.
+Detect your project's environment, activate it from a .sniff.toml spec,
+and generate self-contained wrapper binaries that just work.
+
+All public symbols are lazily loaded on first access via PEP 562 __getattr__.
+This means ``import sniff`` is near-instant (<5ms) regardless of which
+optional dependencies (Rich, Typer) are installed.
 """
 
-# -- Automatic Environment Setup (NEW in 3.0.0) --
-from sniff.envspec import EnvironmentSpec, CondaSpec, ToolSpec, find_envspec
-from sniff.activation import EnvironmentActivator, ActivationResult
-from sniff.install import BinaryInstaller, InstallResult
+__version__ = "3.2.0"
 
-# -- Detection & Platform --
-from sniff.detect import PlatformDetector, PlatformInfo
-from sniff.deps import DependencyChecker, DependencySpec, DependencyResult
-from sniff.conda import COMMON_INSTALL_PATHS, CondaDetector, CondaEnvironment, CondaValidation
-from sniff.tools import ToolChecker
+# ---------------------------------------------------------------------------
+# Lazy import registry: module_path -> list of exported names
+# ---------------------------------------------------------------------------
 
-# -- Configuration --
-from sniff.config import ConfigManager, ConfigReconciler, ConfigSource
+_MODULE_ATTRS: dict[str, list[str]] = {
+    # -- Automatic Environment Setup --
+    "sniff.envspec": ["EnvironmentSpec", "CondaSpec", "ToolSpec", "find_envspec"],
+    "sniff.activation": ["EnvironmentActivator", "ActivationResult"],
+    "sniff.install": ["BinaryInstaller", "InstallResult"],
+    "sniff.wrapper": ["WrapperGenerator"],
+    # -- Detection & Platform --
+    "sniff.detect": ["PlatformDetector", "PlatformInfo"],
+    "sniff.deps": ["DependencyChecker", "DependencySpec", "DependencyResult", "ToolChecker"],
+    "sniff.conda": [
+        "COMMON_INSTALL_PATHS", "CondaDetector", "CondaEnvironment", "CondaValidation",
+    ],
+    # -- Configuration (core) --
+    "sniff.config": ["ConfigManager", "ConfigReconciler", "ConfigSource"],
+    # -- CI --
+    "sniff.ci": ["CIDetector", "CIInfo", "CIProvider", "CIBuildAdvisor", "CIBuildHints"],
+    # -- Workspace --
+    "sniff.workspace": ["WorkspaceDetector", "WorkspaceInfo", "WorkspaceKind", "SubProject"],
+    # -- Versioning --
+    "sniff.version": [
+        "Version", "VersionSpec", "VersionConstraint",
+        "compare_versions", "version_satisfies",
+    ],
+    "sniff.version_managers": ["VersionManagerDetector", "VersionManagerInfo", "ManagedVersion"],
+    # -- Lockfiles --
+    "sniff.lockfile": ["LockfileParser", "LockfileInfo", "LockfileKind", "LockedDependency"],
+    # -- Compiler & Build --
+    "sniff.compiler": ["CompilerDetector", "CompilerFamily", "CompilerInfo", "ToolchainInfo"],
+    "sniff.build": ["BuildSystemDetector", "BuildSystemInfo", "BuildSystem", "BuildTarget"],
+    "sniff.cache": ["BuildCacheDetector", "BuildCacheInfo", "CacheKind"],
+    # -- Shell --
+    "sniff.shell": [
+        "ShellDetector", "ShellInfo", "ShellKind",
+        "ActivationScriptBuilder", "ActivationConfig", "EnvVar",
+        "CompletionGenerator", "CompletionSpec",
+        "PromptHelper", "AliasSuggestor",
+    ],
+    # -- Toolchain --
+    "sniff.toolchain": ["ToolchainProfile", "EnvVarBuilder", "CMakeToolchain", "CondaToolchain"],
+    # -- Environment --
+    "sniff.env": ["EnvSnapshot"],
+    # -- Diagnostics --
+    "sniff.diagnostic": [
+        "DiagnosticReport", "DiagnosticCheck", "CheckRegistry",
+        "DiagnosticRunner", "TextFormatter", "JsonFormatter", "MarkdownFormatter",
+    ],
+    "sniff.diagnostic_checks": ["PlatformCheck", "DependencyCheck", "CIEnvironmentCheck"],
+    # -- Library Paths --
+    "sniff.libpath": ["LibraryPathInfo", "LibraryPathResolver"],
+    # -- Commands --
+    "sniff.commands": ["CommandStatus", "CommandMeta", "CommandProvider", "CommandRegistry", "command"],
+    # -- Validation --
+    "sniff.validate": ["CheckStatus", "CheckResult", "ValidationReport", "EnvironmentValidator"],
+    # -- Remediation --
+    "sniff.remediate": [
+        "IssueSeverity", "FixStatus", "DetectedIssue", "FixResult",
+        "Remediator", "RemediatorRegistry",
+    ],
+    # -- Scaffold --
+    "sniff.scaffold": [
+        "ProjectLanguage", "ProjectFramework", "ProjectType", "ProjectTypeDetector",
+        "FileTemplate", "TemplateSet", "TemplateRegistry",
+        "SetupStep", "SetupScript", "SetupScriptBuilder",
+    ],
+    # -- Execution Context --
+    "sniff.context": [
+        "ExecutionContext", "ContextWorkspaceInfo", "GitInfo",
+        "CPUInfo", "GPUInfo", "MemoryInfo", "SystemLibrary", "ContextDiff",
+    ],
+    # -- CLI Framework (requires sniff[cli]) --
+    "sniff.typer_app": ["Typer", "Option", "Argument", "Exit"],
+    # -- CLI Commands --
+    "sniff.cli_commands": ["run_doctor", "run_version", "run_env"],
+    # -- CLI Styling & Output --
+    "sniff.cli.styles": [
+        "console", "err_console", "Colors", "Symbols",
+        "print_success", "print_error", "print_warning", "print_info", "print_debug",
+        "print_header", "print_step", "print_section", "print_blank",
+        "print_table", "print_numbered_list", "print_next_steps",
+    ],
+    # -- CLI Output Formatting --
+    "sniff.cli.output": ["OutputFormatter", "OutputFormat", "print_dep_results"],
+    # -- CLI Error Handling --
+    "sniff.cli.errors": [
+        "SniffError", "ExitCodes", "NotFoundError", "ValidationError",
+        "ConfigError", "DependencyError",
+    ],
+    # -- CLI Progress --
+    "sniff.cli.progress": ["progress_bar", "spinner"],
+    # -- CLI Runner --
+    "sniff.cli.runner": ["RunResult", "run_logged"],
+}
 
-# -- CI --
-from sniff.ci import CIDetector, CIInfo, CIProvider
-from sniff.ci_build import CIBuildAdvisor, CIBuildHints
+# Renamed/aliased exports: alias -> (module_path, real_name)
+_RENAMES: dict[str, tuple[str, str]] = {
+    "DiagnosticCheckStatus": ("sniff.diagnostic", "CheckStatus"),
+    "DiagnosticCheckResult": ("sniff.diagnostic", "CheckResult"),
+    "SniffTimeoutError": ("sniff.cli.errors", "TimeoutError"),
+    "SniffPermissionError": ("sniff.cli.errors", "PermissionError"),
+    "SniffRuntimeError": ("sniff.cli.errors", "RuntimeError"),
+}
 
-# -- Workspace --
-from sniff.workspace import WorkspaceDetector, WorkspaceInfo, WorkspaceKind, SubProject
+# ---------------------------------------------------------------------------
+# Build reverse lookup: name -> module_path
+# ---------------------------------------------------------------------------
 
-# -- Versioning --
-from sniff.version import Version, VersionSpec, VersionConstraint, compare_versions, version_satisfies
-from sniff.version_managers import VersionManagerDetector, VersionManagerInfo, ManagedVersion
+_ATTR_TO_MODULE: dict[str, str] = {
+    name: mod for mod, names in _MODULE_ATTRS.items() for name in names
+}
 
-# -- Lockfiles --
-from sniff.lockfile import LockfileParser, LockfileInfo, LockfileKind, LockedDependency
+# ---------------------------------------------------------------------------
+# PEP 562 lazy loading
+# ---------------------------------------------------------------------------
 
-# -- Compiler & Build --
-from sniff.compiler import CompilerDetector, CompilerFamily, CompilerInfo, ToolchainInfo
-from sniff.build import BuildSystemDetector, BuildSystemInfo, BuildSystem, BuildTarget
-from sniff.cache import BuildCacheDetector, BuildCacheInfo, CacheKind
 
-# -- Paths --
-from sniff.paths import PathManager, PathCategory, ResolvedPath, ToolPath, LibraryPath, ProjectPaths
+def __getattr__(name: str):  # noqa: N807
+    # Check renamed aliases first
+    if name in _RENAMES:
+        import importlib
 
-# -- Shell --
-from sniff.shell import (
-    ShellDetector,
-    ShellInfo,
-    ShellKind,
-    ActivationScriptBuilder,
-    ActivationConfig,
-    EnvVar,
-    CompletionGenerator,
-    CompletionSpec,
-    PromptHelper,
-    AliasSuggestor,
-)
+        mod_path, real_name = _RENAMES[name]
+        module = importlib.import_module(mod_path)
+        value = getattr(module, real_name)
+        globals()[name] = value
+        return value
 
-# -- Toolchain --
-from sniff.toolchain import (
-    ToolchainProfile,
-    EnvVarBuilder,
-    CMakeToolchain,
-    CondaToolchain,
-)
+    # Check normal attributes
+    if name in _ATTR_TO_MODULE:
+        import importlib
 
-# -- Environment --
-from sniff.env import EnvSnapshot
+        mod_path = _ATTR_TO_MODULE[name]
+        module = importlib.import_module(mod_path)
+        # Bulk-cache ALL names from this module to avoid repeated __getattr__ calls
+        for attr_name in _MODULE_ATTRS[mod_path]:
+            try:
+                globals()[attr_name] = getattr(module, attr_name)
+            except AttributeError:
+                pass
+        return globals()[name]
 
-# -- Diagnostics --
-from sniff.diagnostic import (
-    CheckStatus as DiagnosticCheckStatus,
-    CheckResult as DiagnosticCheckResult,
-    DiagnosticReport,
-    DiagnosticCheck,
-    CheckRegistry,
-    DiagnosticRunner,
-    TextFormatter,
-    JsonFormatter,
-    MarkdownFormatter,
-)
-from sniff.diagnostic_checks import PlatformCheck, DependencyCheck, CIEnvironmentCheck
+    raise AttributeError(f"module 'sniff' has no attribute {name!r}")
 
-# -- Library Paths --
-from sniff.libpath import LibraryPathInfo, LibraryPathResolver
 
-# -- Commands --
-from sniff.commands import (
-    CommandStatus,
-    CommandMeta,
-    CommandProvider,
-    CommandRegistry,
-    command,
-)
+def __dir__():  # noqa: N807
+    return list(_ATTR_TO_MODULE.keys()) + list(_RENAMES.keys()) + ["__version__"]
 
-# -- Validation --
-from sniff.validate import CheckStatus, CheckResult, ValidationReport, EnvironmentValidator
 
-# -- Remediation --
-from sniff.remediate import (
-    IssueSeverity,
-    FixStatus,
-    DetectedIssue,
-    FixResult,
-    Remediator,
-    RemediatorRegistry,
-)
-
-# -- Scaffold --
-from sniff.scaffold import (
-    ProjectLanguage,
-    ProjectFramework,
-    ProjectType,
-    ProjectTypeDetector,
-    FileTemplate,
-    TemplateSet,
-    TemplateRegistry,
-    SetupStep,
-    SetupScript,
-    SetupScriptBuilder,
-)
-
-# -- Execution Context (NEW in 2.1.0) --
-from sniff.context import (
-    ExecutionContext,
-    ContextWorkspaceInfo,
-    GitInfo,
-    CPUInfo,
-    GPUInfo,
-    MemoryInfo,
-    SystemLibrary,
-    ContextDiff,
-)
-
-# -- CLI Framework (NEW in 2.1.0, requires sniff[cli]) --
-from sniff.typer_app import Typer, Option, Argument, Exit
-
-# -- CLI Commands (NEW in 2.1.0, requires sniff[cli]) --
-from sniff.cli_commands import run_doctor, run_version, run_env
-
-# -- Manifest (NEW in 2.1.0) --
-from sniff.manifest import EnvironmentManifest, PackageInfo
-
-# -- CLI Styling & Output (NEW in 3.0.0) --
-from sniff.cli.styles import (
-    console,
-    err_console,
-    Colors,
-    Symbols,
-    print_success,
-    print_error,
-    print_warning,
-    print_info,
-    print_debug,
-    print_header,
-    print_step,
-    print_section,
-    print_blank,
-    print_table,
-    print_numbered_list,
-    print_next_steps,
-)
-
-# -- CLI Output Formatting (NEW in 3.0.0) --
-from sniff.cli.output import OutputFormatter, OutputFormat
-
-# -- CLI Error Handling (NEW in 3.0.0) --
-from sniff.cli.errors import (
-    SniffError,
-    ExitCodes,
-    NotFoundError,
-    ValidationError,
-    ConfigError,
-    DependencyError,
-    TimeoutError as SniffTimeoutError,
-    PermissionError as SniffPermissionError,
-    RuntimeError as SniffRuntimeError,
-)
-
-# -- CLI Progress (NEW in 3.0.0) --
-from sniff.cli.progress import progress_bar, spinner, StatusReporter
-
-# -- CLI Configuration (NEW in 3.0.0) --
-from sniff.cli.config import ConfigManager
-
-# -- CLI Context (NEW in 3.0.0) --
-from sniff.cli.context import CLIContext
-
-__version__ = "3.0.0"
-
-__all__ = [
-    # Automatic Environment Setup (NEW in 3.0.0)
-    "EnvironmentSpec",
-    "CondaSpec",
-    "ToolSpec",
-    "find_envspec",
-    "EnvironmentActivator",
-    "ActivationResult",
-    "BinaryInstaller",
-    "InstallResult",
-    # Detection & Platform
-    "PlatformDetector",
-    "PlatformInfo",
-    "DependencyChecker",
-    "DependencySpec",
-    "DependencyResult",
-    "COMMON_INSTALL_PATHS",
-    "CondaDetector",
-    "CondaEnvironment",
-    "CondaValidation",
-    "ToolChecker",
-    # Configuration
-    "ConfigManager",
-    "ConfigReconciler",
-    "ConfigSource",
-    # CI
-    "CIDetector",
-    "CIInfo",
-    "CIProvider",
-    "CIBuildAdvisor",
-    "CIBuildHints",
-    # Workspace
-    "WorkspaceDetector",
-    "WorkspaceInfo",
-    "WorkspaceKind",
-    "SubProject",
-    # Versioning
-    "Version",
-    "VersionSpec",
-    "VersionConstraint",
-    "compare_versions",
-    "version_satisfies",
-    "VersionManagerDetector",
-    "VersionManagerInfo",
-    "ManagedVersion",
-    # Lockfiles
-    "LockfileParser",
-    "LockfileInfo",
-    "LockfileKind",
-    "LockedDependency",
-    # Compiler & Build
-    "CompilerDetector",
-    "CompilerFamily",
-    "CompilerInfo",
-    "ToolchainInfo",
-    "BuildSystemDetector",
-    "BuildSystemInfo",
-    "BuildSystem",
-    "BuildTarget",
-    "BuildCacheDetector",
-    "BuildCacheInfo",
-    "CacheKind",
-    # Shell
-    "ShellDetector",
-    "ShellInfo",
-    "ShellKind",
-    "ActivationScriptBuilder",
-    "ActivationConfig",
-    "EnvVar",
-    "CompletionGenerator",
-    "CompletionSpec",
-    "PromptHelper",
-    "AliasSuggestor",
-    # Paths
-    "PathManager",
-    "PathCategory",
-    "ResolvedPath",
-    "ToolPath",
-    "LibraryPath",
-    "ProjectPaths",
-    # Toolchain
-    "ToolchainProfile",
-    "EnvVarBuilder",
-    "CMakeToolchain",
-    "CondaToolchain",
-    # Environment
-    "EnvSnapshot",
-    # Scaffold
-    "ProjectLanguage",
-    "ProjectFramework",
-    "ProjectType",
-    "ProjectTypeDetector",
-    "FileTemplate",
-    "TemplateSet",
-    "TemplateRegistry",
-    "SetupStep",
-    "SetupScript",
-    "SetupScriptBuilder",
-    # Diagnostics
-    "DiagnosticCheckStatus",
-    "DiagnosticCheckResult",
-    "DiagnosticReport",
-    "DiagnosticCheck",
-    "CheckRegistry",
-    "DiagnosticRunner",
-    "TextFormatter",
-    "JsonFormatter",
-    "MarkdownFormatter",
-    "PlatformCheck",
-    "DependencyCheck",
-    "CIEnvironmentCheck",
-    # Library Paths
-    "LibraryPathInfo",
-    "LibraryPathResolver",
-    # Commands
-    "CommandStatus",
-    "CommandMeta",
-    "CommandProvider",
-    "CommandRegistry",
-    "command",
-    # Validation
-    "CheckStatus",
-    "CheckResult",
-    "ValidationReport",
-    "EnvironmentValidator",
-    # Remediation
-    "IssueSeverity",
-    "FixStatus",
-    "DetectedIssue",
-    "FixResult",
-    "Remediator",
-    "RemediatorRegistry",
-    # Execution Context (NEW in 2.1.0)
-    "ExecutionContext",
-    "ContextWorkspaceInfo",
-    "GitInfo",
-    "CPUInfo",
-    "GPUInfo",
-    "MemoryInfo",
-    "SystemLibrary",
-    "ContextDiff",
-    # CLI Framework (NEW in 2.1.0)
-    "Typer",
-    "Option",
-    "Argument",
-    "Exit",
-    # CLI Commands (NEW in 2.1.0)
-    "run_doctor",
-    "run_version",
-    "run_env",
-    # Manifest (NEW in 2.1.0)
-    "EnvironmentManifest",
-    "PackageInfo",
-    # Configuration (NEW in 2.1.0)
-    "ConfigReconciler",
-    "ConfigSource",
-    # CLI Styling & Output (NEW in 3.0.0)
-    "console",
-    "err_console",
-    "Colors",
-    "Symbols",
-    "print_success",
-    "print_error",
-    "print_warning",
-    "print_info",
-    "print_debug",
-    "print_header",
-    "print_step",
-    "print_section",
-    "print_blank",
-    "print_table",
-    "print_numbered_list",
-    "print_next_steps",
-    # CLI Output Formatting (NEW in 3.0.0)
-    "OutputFormatter",
-    "OutputFormat",
-    # CLI Error Handling (NEW in 3.0.0)
-    "SniffError",
-    "ExitCodes",
-    "NotFoundError",
-    "ValidationError",
-    "ConfigError",
-    "DependencyError",
-    "SniffTimeoutError",
-    "SniffPermissionError",
-    "SniffRuntimeError",
-    # CLI Progress (NEW in 3.0.0)
-    "progress_bar",
-    "spinner",
-    "StatusReporter",
-    # CLI Configuration (NEW in 3.0.0)
-    "ConfigManager",
-    # CLI Context (NEW in 3.0.0)
-    "CLIContext",
-]
+__all__ = sorted(set(list(_ATTR_TO_MODULE) + list(_RENAMES) + ["__version__"]))

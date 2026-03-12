@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "sniff"
-version = "3.0.0"
-description = "Sniff out your Python development environment"
+version = "3.2.0"
+description = "One config. Zero activation. Any project."
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -39,6 +39,9 @@ Homepage = "https://github.com/randreshg/sniff"
 Documentation = "https://sniff.readthedocs.io"
 Repository = "https://github.com/randreshg/sniff"
 Issues = "https://github.com/randreshg/sniff/issues"
+
+[project.scripts]
+sniff = "sniff.cli.main:main"
 
 [project.optional-dependencies]
 cli = [

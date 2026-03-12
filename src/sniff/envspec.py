@@ -3,20 +3,11 @@
 from __future__ import annotations
 
 import os
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
-if sys.version_info >= (3, 11):
-    import tomllib
-else:
-    try:
-        import tomli as tomllib
-    except ImportError:
-        raise ImportError("tomli required for Python < 3.11: pip install tomli")
-
-from .cli.errors import ConfigError, ValidationError
+from sniff._compat import tomllib, walk_up
 
 
 @dataclass(frozen=True)
@@ -50,6 +41,9 @@ class EnvironmentSpec:
     def from_file(cls, path: Path) -> EnvironmentSpec:
         """Parse .sniff.toml file."""
         if not path.exists():
+            # Lazy import to avoid triggering Rich import chain
+            from sniff.cli.errors import ConfigError
+
             raise ConfigError(
                 f"Environment spec not found: {path}",
                 hint="Run 'sniff init' to create a .sniff.toml file",
@@ -59,6 +53,8 @@ class EnvironmentSpec:
             with open(path, "rb") as f:
                 data = tomllib.load(f)
         except Exception as e:
+            from sniff.cli.errors import ConfigError
+
             raise ConfigError(f"Failed to parse {path}: {e}")
 
         return cls._from_dict(data)
@@ -69,6 +65,8 @@ class EnvironmentSpec:
         # Project name is required
         project = data.get("project", {})
         if not project.get("name"):
+            from sniff.cli.errors import ValidationError
+
             raise ValidationError(
                 "Missing project.name",
                 hint="Add [project]\\nname = \"myproject\" to .sniff.toml",
@@ -97,6 +95,8 @@ class EnvironmentSpec:
         # Env vars (simple dict)
         env_vars = data.get("env", {})
         if env_vars and not isinstance(env_vars, dict):
+            from sniff.cli.errors import ValidationError
+
             raise ValidationError("env must be a dict")
 
         # Paths (normalize to lists)
@@ -142,11 +142,4 @@ class EnvironmentSpec:
 
 def find_envspec(start_dir: Optional[Path] = None) -> Optional[Path]:
     """Find .sniff.toml by walking up the directory tree."""
-    current = Path(start_dir or Path.cwd()).resolve()
-
-    for parent in [current, *current.parents]:
-        spec_file = parent / ".sniff.toml"
-        if spec_file.exists():
-            return spec_file
-
-    return None
+    return walk_up(Path(start_dir or Path.cwd()), ".sniff.toml")

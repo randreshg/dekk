@@ -3,6 +3,9 @@
 Provides semantic color styles, Unicode status symbols, and 12 core output
 functions that cover 89% of all CLI output across APXM and Tully codebases.
 
+Rich is imported lazily on first use of any print_* function or console access,
+so importing this module alone does NOT pull in Rich.
+
 Usage::
 
     from sniff.cli.styles import print_success, print_error, print_info, Colors
@@ -16,36 +19,8 @@ from __future__ import annotations
 
 from enum import Enum
 
-from rich.console import Console
-from rich.theme import Theme
-
 # ---------------------------------------------------------------------------
-# Theme & Global Consoles
-# ---------------------------------------------------------------------------
-
-CLI_THEME = Theme(
-    {
-        "success": "bold green",
-        "error": "bold red",
-        "warning": "bold yellow",
-        "info": "cyan",
-        "debug": "dim",
-        "header": "bold cyan",
-        "step": "bold blue",
-        "dim": "dim",
-        "highlight": "bold white",
-    }
-)
-"""Rich Theme with semantic styles for CLI output."""
-
-console = Console(theme=CLI_THEME)
-"""Global Rich Console for standard output."""
-
-err_console = Console(theme=CLI_THEME, stderr=True)
-"""Global Rich Console for error/warning output (writes to stderr)."""
-
-# ---------------------------------------------------------------------------
-# Enums
+# Enums (pure Python, no Rich dependency)
 # ---------------------------------------------------------------------------
 
 
@@ -66,6 +41,9 @@ class Colors(str, Enum):
     DIM = "dim"
     HIGHLIGHT = "bold white"
 
+    def __format__(self, format_spec: str) -> str:
+        return self.value.__format__(format_spec)
+
 
 class Symbols:
     """Unicode symbols for status indicators.
@@ -82,57 +60,87 @@ class Symbols:
     WARNING = "\u26a0"   # warning sign
 
 # ---------------------------------------------------------------------------
+# Lazy Rich console singletons
+# ---------------------------------------------------------------------------
+
+_console = None
+_err_console = None
+_cli_theme = None
+
+
+def _get_theme():
+    global _cli_theme
+    if _cli_theme is None:
+        from rich.theme import Theme
+        _cli_theme = Theme({c.name.lower(): c.value for c in Colors})
+    return _cli_theme
+
+
+def _get_console():
+    global _console
+    if _console is None:
+        from rich.console import Console
+        _console = Console(theme=_get_theme())
+    return _console
+
+
+def _get_err_console():
+    global _err_console
+    if _err_console is None:
+        from rich.console import Console
+        _err_console = Console(theme=_get_theme(), stderr=True)
+    return _err_console
+
+
+# Module-level __getattr__ for lazy access to console, err_console, CLI_THEME
+def __getattr__(name: str):  # noqa: N807
+    if name == "console":
+        val = _get_console()
+        globals()["console"] = val
+        return val
+    if name == "err_console":
+        val = _get_err_console()
+        globals()["err_console"] = val
+        return val
+    if name == "CLI_THEME":
+        val = _get_theme()
+        globals()["CLI_THEME"] = val
+        return val
+    raise AttributeError(f"module 'sniff.cli.styles' has no attribute {name!r}")
+
+
+# ---------------------------------------------------------------------------
 # Status Messages (89% of all CLI output)
 # ---------------------------------------------------------------------------
 
 
 def print_success(msg: str) -> None:
-    """Print a success message with a green checkmark icon.
-
-    Args:
-        msg: The message to display.
-    """
-    icon = f"[bold green]{Symbols.PASS}[/]"
-    console.print(f"  {icon} {msg}")
+    """Print a success message with a green checkmark icon."""
+    icon = f"[{Colors.SUCCESS}]{Symbols.PASS}[/]"
+    _get_console().print(f"  {icon} {msg}")
 
 
 def print_error(msg: str) -> None:
-    """Print an error message with a red X icon to stderr.
-
-    Args:
-        msg: The error message to display.
-    """
-    icon = f"[bold red]{Symbols.FAIL}[/]"
-    err_console.print(f"  {icon} {msg}")
+    """Print an error message with a red X icon to stderr."""
+    icon = f"[{Colors.ERROR}]{Symbols.FAIL}[/]"
+    _get_err_console().print(f"  {icon} {msg}")
 
 
 def print_warning(msg: str) -> None:
-    """Print a warning message with a warning icon to stderr.
-
-    Args:
-        msg: The warning message to display.
-    """
-    icon = f"[bold yellow]{Symbols.WARNING}[/]"
-    err_console.print(f"  {icon} {msg}")
+    """Print a warning message with a warning icon to stderr."""
+    icon = f"[{Colors.WARNING}]{Symbols.WARNING}[/]"
+    _get_err_console().print(f"  {icon} {msg}")
 
 
 def print_info(msg: str) -> None:
-    """Print an informational message with an info icon.
-
-    Args:
-        msg: The informational message to display.
-    """
-    icon = f"[cyan]{Symbols.INFO}[/]"
-    console.print(f"  {icon} {msg}")
+    """Print an informational message with an info icon."""
+    icon = f"[{Colors.INFO}]{Symbols.INFO}[/]"
+    _get_console().print(f"  {icon} {msg}")
 
 
 def print_debug(msg: str) -> None:
-    """Print a debug message in dimmed style.
-
-    Args:
-        msg: The debug message to display.
-    """
-    console.print(f"  [dim]{Symbols.SKIP} {msg}[/]")
+    """Print a debug message in dimmed style."""
+    _get_console().print(f"  [{Colors.DEBUG}]{Symbols.SKIP} {msg}[/]")
 
 # ---------------------------------------------------------------------------
 # Structural Elements
@@ -140,45 +148,31 @@ def print_debug(msg: str) -> None:
 
 
 def print_header(title: str, subtitle: str | None = None) -> None:
-    """Print a header with minimal token usage.
-
-    Args:
-        title: The header title text.
-        subtitle: Optional subtitle displayed below the title in dim style.
-    """
-    console.print()
-    console.print(f"[bold cyan]{title}[/]")
+    """Print a header with minimal token usage."""
+    c = _get_console()
+    c.print()
+    c.print(f"[{Colors.HEADER}]{title}[/]")
     if subtitle:
-        console.print(f"[dim]{subtitle}[/]")
-    console.print(f"[dim]{'─' * 40}[/]")
+        c.print(f"[dim]{subtitle}[/]")
+    c.print(f"[dim]{'─' * 40}[/]")
 
 
 def print_step(msg: str, step_num: int | None = None, total: int | None = None) -> None:
-    """Print a step indicator with an optional ``[N/M]`` prefix.
-
-    Args:
-        msg: The step description.
-        step_num: Current step number (requires *total* as well).
-        total: Total number of steps (requires *step_num* as well).
-    """
+    """Print a step indicator with an optional ``[N/M]`` prefix."""
     prefix = ""
     if step_num is not None and total is not None:
-        prefix = f"[bold blue][{step_num}/{total}][/] "
-    console.print(f"{prefix}[bold blue]\u25b6[/] {msg}")
+        prefix = f"[{Colors.STEP}][{step_num}/{total}][/] "
+    _get_console().print(f"{prefix}[{Colors.STEP}]\u25b6[/] {msg}")
 
 
 def print_section(title: str) -> None:
-    """Print a section divider (bold text preceded by a blank line).
-
-    Args:
-        title: The section title.
-    """
-    console.print(f"\n[bold]{title}[/bold]")
+    """Print a section divider (bold text preceded by a blank line)."""
+    _get_console().print(f"\n[bold]{title}[/]")
 
 
 def print_blank() -> None:
     """Print a blank line for visual spacing."""
-    console.print()
+    _get_console().print()
 
 # ---------------------------------------------------------------------------
 # Collections
@@ -186,13 +180,7 @@ def print_blank() -> None:
 
 
 def print_table(title: str, headers: list[str], rows: list[list[str]]) -> None:
-    """Print a formatted Rich table with minimal borders.
-
-    Args:
-        title: Table title displayed above the table.
-        headers: Column header labels.
-        rows: List of rows, where each row is a list of cell values.
-    """
+    """Print a formatted Rich table with minimal borders."""
     from rich import box
     from rich.table import Table
 
@@ -201,24 +189,17 @@ def print_table(title: str, headers: list[str], rows: list[list[str]]) -> None:
         table.add_column(header)
     for row in rows:
         table.add_row(*row)
-    console.print(table)
+    _get_console().print(table)
 
 
 def print_numbered_list(items: list[str]) -> None:
-    """Print a numbered list of items.
-
-    Args:
-        items: The items to number and display.
-    """
+    """Print a numbered list of items."""
+    c = _get_console()
     for i, item in enumerate(items, 1):
-        console.print(f"  {i}. {item}")
+        c.print(f"  {i}. {item}")
 
 
 def print_next_steps(steps: list[str]) -> None:
-    """Print a 'Next steps:' block with a numbered list.
-
-    Args:
-        steps: List of recommended next actions.
-    """
-    console.print("\n[bold]Next steps:[/bold]")
+    """Print a 'Next steps:' block with a numbered list."""
+    _get_console().print("\n[bold]Next steps:[/]")
     print_numbered_list(steps)

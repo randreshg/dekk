@@ -89,16 +89,32 @@ class EnvVarBuilder:
     def to_env_dict(self) -> dict[str, str]:
         """Produce a plain dict of env var name -> value (for subprocess.Popen).
 
-        For prepend-style variables the value is just the new prefix; callers
-        should merge with ``os.environ`` themselves. PATH prepends are added
-        under the key ``"PATH"``.
+        Prepend-style variables are joined with ``:``. PATH prepends are
+        merged into the ``"PATH"`` key. Callers should merge the result
+        with ``os.environ`` themselves (prepending path-like values).
         """
         result: dict[str, str] = {}
+        prepends: dict[str, list[str]] = {}
         for var in self._env_vars:
-            result[var.name] = var.value
+            if var.prepend_path:
+                prepends.setdefault(var.name, []).append(var.value)
+            else:
+                result[var.name] = var.value
+        for name, values in prepends.items():
+            result[name] = ":".join(values)
         if self._path_prepends:
-            result["PATH"] = ":".join(self._path_prepends)
+            existing = result.get("PATH", "")
+            path_val = ":".join(self._path_prepends)
+            result["PATH"] = f"{path_val}:{existing}" if existing else path_val
         return result
+
+    @property
+    def prepend_keys(self) -> frozenset[str]:
+        """Names of environment variables that should be prepended, not replaced."""
+        keys = {var.name for var in self._env_vars if var.prepend_path}
+        if self._path_prepends:
+            keys.add("PATH")
+        return frozenset(keys)
 
 
 # ---------------------------------------------------------------------------

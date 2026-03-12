@@ -14,19 +14,12 @@ Pure detection -- no side effects.
 from __future__ import annotations
 
 import enum
-import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Sequence
 
-if __import__("sys").version_info >= (3, 11):
-    import tomllib
-else:
-    try:
-        import tomli as tomllib  # type: ignore[no-redefine]
-    except ImportError:
-        tomllib = None  # type: ignore[assignment]
+from sniff._compat import load_toml, load_json
 
 
 class WorkspaceKind(enum.Enum):
@@ -212,7 +205,7 @@ class WorkspaceDetector:
         if not cargo_toml.exists():
             return None
 
-        data = self._load_toml(cargo_toml)
+        data = load_toml(cargo_toml)
         if not data:
             return None
 
@@ -247,7 +240,7 @@ class WorkspaceDetector:
             if not member_toml.exists():
                 continue
 
-            data = self._load_toml(member_toml)
+            data = load_toml(member_toml)
             if not data:
                 continue
 
@@ -331,7 +324,7 @@ class WorkspaceDetector:
         if not pkg_json.exists():
             return None
 
-        data = self._load_json(pkg_json)
+        data = load_json(pkg_json)
         if not data:
             return None
 
@@ -380,7 +373,7 @@ class WorkspaceDetector:
         if not yarnrc.exists() and not yarn_lock.exists():
             return None
 
-        data = self._load_json(pkg_json)
+        data = load_json(pkg_json)
         if not data:
             return None
 
@@ -420,7 +413,7 @@ class WorkspaceDetector:
             if not pkg_json.exists():
                 continue
 
-            data = self._load_json(pkg_json)
+            data = load_json(pkg_json)
             if not data:
                 continue
 
@@ -456,7 +449,7 @@ class WorkspaceDetector:
         if not pyproject.exists():
             return None
 
-        data = self._load_toml(pyproject)
+        data = load_toml(pyproject)
         if not data:
             return None
 
@@ -505,7 +498,7 @@ class WorkspaceDetector:
         if not pyproject.exists():
             return None
 
-        data = self._load_toml(pyproject)
+        data = load_toml(pyproject)
         if not data:
             return None
 
@@ -535,7 +528,7 @@ class WorkspaceDetector:
         if not pyproject.exists():
             return None
 
-        data = self._load_toml(pyproject)
+        data = load_toml(pyproject)
         if not data:
             return None
 
@@ -579,7 +572,7 @@ class WorkspaceDetector:
         if not pyproject.exists():
             return None
 
-        data = self._load_toml(pyproject)
+        data = load_toml(pyproject)
         if not data:
             return None
 
@@ -616,7 +609,7 @@ class WorkspaceDetector:
             if not pyproject.exists():
                 continue
 
-            data = self._load_toml(pyproject)
+            data = load_toml(pyproject)
             if not data:
                 continue
 
@@ -729,7 +722,7 @@ class WorkspaceDetector:
         if not nx_json.exists():
             return None
 
-        data = self._load_json(nx_json)
+        data = load_json(nx_json)
         if not data:
             return None
 
@@ -753,7 +746,7 @@ class WorkspaceDetector:
                     name = child.name
                     pkg_json = child / "package.json"
                     if pkg_json.exists():
-                        pkg_data = self._load_json(pkg_json)
+                        pkg_data = load_json(pkg_json)
                         if pkg_data:
                             name = pkg_data.get("name", name)
                     projects.append(SubProject(
@@ -783,7 +776,7 @@ class WorkspaceDetector:
         if not pkg_json.exists():
             return None
 
-        data = self._load_json(pkg_json)
+        data = load_json(pkg_json)
         if not data:
             return None
 
@@ -816,7 +809,7 @@ class WorkspaceDetector:
         if not lerna_json.exists():
             return None
 
-        data = self._load_json(lerna_json)
+        data = load_json(lerna_json)
         if not data:
             return None
 
@@ -874,7 +867,7 @@ class WorkspaceDetector:
         if not pants_toml.exists():
             return None
 
-        data = self._load_toml(pants_toml)
+        data = load_toml(pants_toml)
         if not data:
             return None
 
@@ -894,22 +887,6 @@ class WorkspaceDetector:
         )
 
     # --- Utility methods ---
-
-    def _load_toml(self, path: Path) -> dict | None:
-        if tomllib is None:
-            return None
-        try:
-            with open(path, "rb") as f:
-                return tomllib.load(f)
-        except (OSError, ValueError):
-            return None
-
-    def _load_json(self, path: Path) -> dict | None:
-        try:
-            with open(path, encoding="utf-8") as f:
-                return json.load(f)
-        except (OSError, ValueError, json.JSONDecodeError):
-            return None
 
     def _expand_globs(
         self, root: Path, patterns: list[str], exclude: list[str]
