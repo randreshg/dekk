@@ -4,7 +4,7 @@ All notable changes to `dekk` will be documented in this file.
 
 ## 1.0.0 - 2026-03-19
 
-Initial public release of the renamed and repackaged `dekk` project.
+First public `dekk` release.
 
 - Renamed the published distribution to `dekk`.
 - Renamed the Python import package to `dekk`.

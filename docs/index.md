@@ -1,10 +1,10 @@
 # dekk Documentation
 
-**One config. Zero activation. Any project.**
+**Make project CLIs runnable with one config and zero manual activation.**
 
-dekk is a development environment library and CLI framework. Declare your
-environment in `.dekk.toml`, and dekk handles detection, activation, and
-wrapper generation -- for any language, any shell, any CI provider.
+dekk is a runtime layer for project commands. Declare the environment in
+`.dekk.toml`, and dekk handles detection, activation, wrapper generation,
+and installed command setup for any language, shell, or CI provider.
 
 Start with:
 

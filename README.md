@@ -1,10 +1,11 @@
 # dekk
 
-**One config. Zero activation. Any project.**
+**Make project CLIs runnable with one config and zero manual activation.**
 
-dekk detects your project's environment, activates it, and generates
-a self-contained wrapper binary. No manual setup. No `conda activate`.
-No PATH wrangling. Just works.
+dekk turns project setup into a reusable runtime layer. Declare the
+environment once in `.dekk.toml`, then use `dekk` to detect tools,
+activate the environment, install wrappers, and make project commands
+work on fresh machines without hand-written setup steps.
 
 ## Install And Start
 
@@ -34,7 +35,9 @@ duplicate configuration.
 
 ## The Solution
 
-Declare your environment once in `.dekk.toml`. dekk handles the rest.
+Declare your environment once in `.dekk.toml`. dekk handles detection,
+activation, wrapper generation, and installed command setup from that
+single source of truth.
 
 ```toml
 [project]
