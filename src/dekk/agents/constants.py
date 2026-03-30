@@ -84,6 +84,19 @@ CODEX_HOME_DEFAULT: Final = ".codex"
 CODEX_SKILLS_DIR_NAME: Final = "skills"
 
 # ---------------------------------------------------------------------------
+# Flow generation
+# ---------------------------------------------------------------------------
+
+DEFAULT_FLOWS_DIR: Final = "flows"
+
+# TOML keys for project name lookup
+TOML_PROJECT_KEY: Final = "project"
+TOML_NAME_KEY: Final = "name"
+TOML_COMMANDS_KEY: Final = "commands"
+TOML_RUN_KEY: Final = "run"
+TOML_DESCRIPTION_KEY: Final = "description"
+
+# ---------------------------------------------------------------------------
 # Default CLI name (for standalone dekk usage)
 # ---------------------------------------------------------------------------
 

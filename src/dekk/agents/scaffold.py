@@ -22,14 +22,12 @@ from dekk.agents.constants import (
     RULES_DIR_NAME,
     SKILL_FILENAME,
     SKILLS_DIR_NAME,
+    TOML_COMMANDS_KEY,
+    TOML_DESCRIPTION_KEY,
+    TOML_NAME_KEY,
+    TOML_PROJECT_KEY,
+    TOML_RUN_KEY,
 )
-
-# TOML keys
-_TOML_PROJECT_KEY = "project"
-_TOML_NAME_KEY = "name"
-_TOML_COMMANDS_KEY = "commands"
-_TOML_RUN_KEY = "run"
-_TOML_DESCRIPTION_KEY = "description"
 
 
 @dataclass
@@ -76,15 +74,15 @@ def discover_commands_from_typer(parent_app: Any, cli_name: str) -> list[Discove
 
 def discover_commands_from_toml(spec: Any) -> list[DiscoveredCommand]:
     """Read commands from a parsed EnvironmentSpec's ``commands`` dict."""
-    commands_dict = getattr(spec, _TOML_COMMANDS_KEY, {})
+    commands_dict = getattr(spec, TOML_COMMANDS_KEY, {})
     if not commands_dict:
         return []
 
     result: list[DiscoveredCommand] = []
     for name, cmd_spec in commands_dict.items():
         if isinstance(cmd_spec, dict):
-            run_cmd = cmd_spec.get(_TOML_RUN_KEY, name)
-            desc = cmd_spec.get(_TOML_DESCRIPTION_KEY, "")
+            run_cmd = cmd_spec.get(TOML_RUN_KEY, name)
+            desc = cmd_spec.get(TOML_DESCRIPTION_KEY, "")
         else:
             run_cmd = str(cmd_spec)
             desc = ""
@@ -100,7 +98,7 @@ def discover_commands_from_toml(spec: Any) -> list[DiscoveredCommand]:
 
 def _detect_project_info(project_root: Path) -> dict[str, str]:
     """Auto-detect project language, build system, and test framework."""
-    info: dict[str, str] = {_TOML_NAME_KEY: project_root.name}
+    info: dict[str, str] = {TOML_NAME_KEY: project_root.name}
 
     for marker, (language, build_cmd, test_cmd) in BUILD_SYSTEM_MARKERS.items():
         if (project_root / marker).exists():
@@ -230,13 +228,13 @@ def scaffold_agents_dir(
 
         with open(dekk_toml, "rb") as f:
             data = tomllib.load(f)
-        toml_project_name = data.get(_TOML_PROJECT_KEY, {}).get(_TOML_NAME_KEY)
-        toml_commands = data.get(_TOML_COMMANDS_KEY, {})
+        toml_project_name = data.get(TOML_PROJECT_KEY, {}).get(TOML_NAME_KEY)
+        toml_commands = data.get(TOML_COMMANDS_KEY, {})
         for name, spec in toml_commands.items():
             if name not in seen_names:
                 if isinstance(spec, dict):
-                    run_cmd = spec.get(_TOML_RUN_KEY, name)
-                    desc = spec.get(_TOML_DESCRIPTION_KEY, "")
+                    run_cmd = spec.get(TOML_RUN_KEY, name)
+                    desc = spec.get(TOML_DESCRIPTION_KEY, "")
                 else:
                     run_cmd = str(spec)
                     desc = ""
@@ -249,7 +247,7 @@ def scaffold_agents_dir(
 
     # Detect project info
     project_info = _detect_project_info(project_root)
-    project_name = toml_project_name or project_info.get(_TOML_NAME_KEY, project_root.name)
+    project_name = toml_project_name or project_info.get(TOML_NAME_KEY, project_root.name)
 
     # Generate skill templates from commands
     commands_to_skills(all_commands, skills_dir)

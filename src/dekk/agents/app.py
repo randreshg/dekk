@@ -20,6 +20,7 @@ from dekk.agents.constants import (
     COPILOT_INSTRUCTIONS,
     CURSORRULES,
     DEFAULT_CLI_NAME,
+    DEFAULT_FLOWS_DIR,
     DEFAULT_SOURCE_DIR,
     DEKK_TOML,
     PROJECT_MD,
@@ -272,5 +273,62 @@ def create_agents_app(
         for skill in skills:
             console.print(f"[{Colors.INFO}]{skill.name}[/{Colors.INFO}]")
             console.print(f"  {skill.description}")
+
+    @agents_app.command("flow")
+    def flow(
+        template: str = typer.Argument(
+            ...,
+            help="Flow template: review, triage, or echo",
+        ),
+        flows_dir: str = typer.Option(
+            DEFAULT_FLOWS_DIR,
+            "--dir",
+            "-d",
+            help="Directory to write flows into",
+        ),
+        force: bool = typer.Option(
+            False,
+            "--force",
+            "-f",
+            help="Overwrite existing flow files",
+        ),
+    ) -> None:
+        """Generate a starter acpx flow template for the project."""
+        from dekk.agents.flows import FLOW_TEMPLATES, generate_flow
+        from dekk.cli.styles import print_error, print_info, print_success
+
+        project_root = _resolve_root()
+        cli_name = None
+        if parent_app is not None:
+            cli_name = getattr(parent_app, "_name", None)
+
+        try:
+            created = generate_flow(
+                project_root=project_root,
+                template=template,
+                source_dir=source_dir,
+                flows_dir=flows_dir,
+                force=force,
+            )
+        except ValueError as exc:
+            print_error(str(exc))
+            avail = ", ".join(f"'{k}'" for k in FLOW_TEMPLATES)
+            print_info(f"Available templates: {avail}")
+            raise typer.Exit(1) from exc
+
+        if not created:
+            print_info(f"Flow '{template}' already exists (use --force to overwrite)")
+            return
+
+        for path in created:
+            rel = path.relative_to(project_root)
+            print_success(f"Created {rel}")
+
+        from dekk.cli.styles import print_next_steps
+
+        print_next_steps([
+            f"cd {flows_dir} && npm install",
+            f"acpx --approve-all flow run ./{flows_dir}/{template}.flow.ts --input-json '{{...}}'",
+        ])
 
     return agents_app
