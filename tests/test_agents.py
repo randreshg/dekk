@@ -707,6 +707,115 @@ class TestProjectRootResolution:
             os.chdir(original_cwd)
 
 
+class TestFlowGeneration:
+    """Tests for dekk agents flow — acpx flow template generation."""
+
+    def test_generate_review_flow(self, agents_dir: Path, tmp_path: Path) -> None:
+        from dekk.agents.flows import generate_flow
+
+        created = generate_flow(tmp_path, "review")
+        assert any("review.flow.ts" in str(p) for p in created)
+        flow_file = tmp_path / "flows" / "review.flow.ts"
+        assert flow_file.is_file()
+        content = flow_file.read_text()
+        assert "defineFlow" in content
+        assert 'name: "pr-review"' in content
+        assert "load_pr" in content
+        assert "review_code" in content
+        assert "$output.route" in content
+
+    def test_generate_triage_flow(self, agents_dir: Path, tmp_path: Path) -> None:
+        from dekk.agents.flows import generate_flow
+
+        created = generate_flow(tmp_path, "triage")
+        flow_file = tmp_path / "flows" / "triage.flow.ts"
+        assert flow_file.is_file()
+        content = flow_file.read_text()
+        assert 'name: "pr-triage"' in content
+        assert "extract_intent" in content
+        assert "test_changes" in content
+        assert "final_review" in content
+        assert "comment_and_close" in content
+
+    def test_generate_echo_flow(self, agents_dir: Path, tmp_path: Path) -> None:
+        from dekk.agents.flows import generate_flow
+
+        created = generate_flow(tmp_path, "echo")
+        flow_file = tmp_path / "flows" / "echo.flow.ts"
+        assert flow_file.is_file()
+        content = flow_file.read_text()
+        assert 'name: "echo-test"' in content
+        assert 'profile: "codex"' in content
+        assert 'profile: "claude"' in content
+
+    def test_generates_utils_and_package_json(self, agents_dir: Path, tmp_path: Path) -> None:
+        from dekk.agents.flows import generate_flow
+
+        generate_flow(tmp_path, "review")
+        assert (tmp_path / "flows" / "lib" / "utils.ts").is_file()
+        assert (tmp_path / "flows" / "package.json").is_file()
+        assert (tmp_path / "flows" / "tsconfig.json").is_file()
+
+    def test_no_overwrite_without_force(self, agents_dir: Path, tmp_path: Path) -> None:
+        from dekk.agents.flows import generate_flow
+
+        generate_flow(tmp_path, "review")
+        # Second call should not overwrite
+        created = generate_flow(tmp_path, "review")
+        assert len(created) == 0
+
+    def test_force_overwrites(self, agents_dir: Path, tmp_path: Path) -> None:
+        from dekk.agents.flows import generate_flow
+
+        generate_flow(tmp_path, "review")
+        created = generate_flow(tmp_path, "review", force=True)
+        assert any("review.flow.ts" in str(p) for p in created)
+
+    def test_invalid_template(self, agents_dir: Path, tmp_path: Path) -> None:
+        from dekk.agents.flows import generate_flow
+
+        with pytest.raises(ValueError, match="Unknown template"):
+            generate_flow(tmp_path, "nonexistent")
+
+    def test_embeds_project_skills(self, agents_dir: Path, tmp_path: Path) -> None:
+        from dekk.agents.flows import generate_flow
+
+        # The agents_dir fixture creates build and test skills
+        created = generate_flow(tmp_path, "triage")
+        content = (tmp_path / "flows" / "triage.flow.ts").read_text()
+        # Should reference build and test skills in embedSkills calls
+        assert '"build"' in content
+        assert '"test"' in content
+
+    def test_uses_dekk_toml_project_name(self, tmp_path: Path) -> None:
+        from dekk.agents.flows import generate_flow
+
+        # Create .dekk.toml with project name
+        (tmp_path / ".dekk.toml").write_text(
+            '[project]\nname = "my-fancy-project"\n'
+        )
+        # Create minimal .agents/
+        source = tmp_path / ".agents"
+        (source / "skills").mkdir(parents=True)
+        (source / "project.md").write_text("# my-fancy-project\n")
+
+        generate_flow(tmp_path, "echo")
+        content = (tmp_path / "flows" / "echo.flow.ts").read_text()
+        assert "my-fancy-project" in content
+
+    def test_shared_utils_not_duplicated(self, agents_dir: Path, tmp_path: Path) -> None:
+        from dekk.agents.flows import generate_flow
+
+        # Generate review (creates utils.ts)
+        generate_flow(tmp_path, "review")
+        utils_content = (tmp_path / "flows" / "lib" / "utils.ts").read_text()
+        # Generate triage (should NOT recreate utils.ts)
+        created = generate_flow(tmp_path, "triage")
+        assert not any("utils.ts" in str(p) for p in created)
+        # Content should be unchanged
+        assert (tmp_path / "flows" / "lib" / "utils.ts").read_text() == utils_content
+
+
 class TestEndToEnd:
     def test_full_pipeline(self, tmp_path: Path) -> None:
         """Test the full init -> generate -> install pipeline."""
