@@ -31,6 +31,7 @@ BUILTIN_COMMANDS: Final = {
     "uninstall",
     "setup",
     "agents",
+    "worktree",
 }
 
 
@@ -239,6 +240,12 @@ def _make_app() -> typer.Typer:
 
     agents_sub = create_agents_app(source_dir=DEFAULT_SOURCE_DIR)
     app.add_typer(agents_sub, name="agents")
+
+    # -- Git worktree management sub-app --
+    from dekk.cli.worktree_commands import create_worktree_app
+
+    worktree_sub = create_worktree_app()
+    app.add_typer(worktree_sub, name="worktree")
 
     return app
 

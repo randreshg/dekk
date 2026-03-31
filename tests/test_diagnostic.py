@@ -16,10 +16,8 @@ from dekk.diagnostics.diagnostic import (
     CheckStatus,
     DiagnosticReport,
     DiagnosticRunner,
-    JsonFormatter,
-    MarkdownFormatter,
-    TextFormatter,
 )
+from dekk.diagnostics.formatters import JsonFormatter, MarkdownFormatter, TextFormatter
 from dekk.diagnostics.diagnostic_checks import CIEnvironmentCheck, DependencyCheck, PlatformCheck
 from dekk.diagnostics.remediate import (
     DetectedIssue,

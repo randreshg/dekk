@@ -5,10 +5,8 @@ from .diagnostic import (
     DiagnosticCheck,
     DiagnosticReport,
     DiagnosticRunner,
-    JsonFormatter,
-    MarkdownFormatter,
-    TextFormatter,
 )
+from .formatters import JsonFormatter, MarkdownFormatter, TextFormatter
 from .diagnostic_checks import CIEnvironmentCheck, DependencyCheck, PlatformCheck
 from .remediate import (
     DetectedIssue,

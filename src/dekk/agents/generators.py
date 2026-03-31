@@ -48,6 +48,20 @@ from dekk.environment.spec import AgentsSpec
 
 _BUILTIN_TARGETS: frozenset[str] = frozenset({TARGET_ALL, *ALL_TARGETS})
 
+
+def render_skills_index(skills: list[SkillDefinition]) -> str:
+    """Render ``skills_index.md`` content from discovered skills.
+
+    The index gives agents a lightweight lookup so they can pick the right
+    skill before loading full SKILL.md instructions.
+    """
+    lines = ["## Available Skills", ""]
+    for skill in skills:
+        lines.append(f"### {skill.name}")
+        lines.append(f"Use when: {skill.description.rstrip('.')}.")
+        lines.append("")
+    return "\n".join(lines)
+
 _TARGET_CONFIGS: dict[str, dict[str, str]] = {
     TARGET_CLAUDE: {
         "instructions": CLAUDE_MD,

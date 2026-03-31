@@ -110,6 +110,8 @@ _MODULE_ATTRS: dict[str, list[str]] = {
         "DiagnosticCheck",
         "CheckRegistry",
         "DiagnosticRunner",
+    ],
+    "dekk.diagnostics.formatters": [
         "TextFormatter",
         "JsonFormatter",
         "MarkdownFormatter",
@@ -201,6 +203,17 @@ _MODULE_ATTRS: dict[str, list[str]] = {
     "dekk.cli.progress": ["progress_bar", "spinner"],
     # -- CLI Runner --
     "dekk.cli.runner": ["RunResult", "run_logged"],
+    # -- Project & Worktree --
+    "dekk.project": [
+        "WorktreeCreateResult",
+        "WorktreeInfo",
+        "create_worktree",
+        "find_git_root",
+        "list_worktrees",
+        "prune_worktrees",
+        "remove_worktree",
+        "run_project_command",
+    ],
     # -- Script Runner --
     "dekk.execution.runner": ["run_script"],
 }
