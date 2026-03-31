@@ -28,6 +28,21 @@ from dekk.agents.constants import (
 )
 
 
+def _handle_dekk_error(exc: Exception) -> None:
+    """Re-raise *exc* with formatted output if it is a ``DekkError``."""
+    import typer
+
+    from dekk.cli.errors import DekkError
+    from dekk.cli.styles import print_error, print_info
+
+    if isinstance(exc, DekkError):
+        print_error(exc.message)
+        if exc.hint:
+            print_info(f"Hint: {exc.hint}")
+        raise typer.Exit(exc.exit_code) from exc
+    raise exc
+
+
 def _find_project_root(source_dir: str) -> Path:
     """Walk up from cwd to find the project root.
 
@@ -118,16 +133,27 @@ def create_agents_app(
         """Generate agent configs from the source-of-truth directory."""
         from dekk.agents.generators import AgentConfigManager
         from dekk.cli.styles import print_error, print_info, print_success
+        from dekk.environment.spec import AgentsSpec, EnvironmentSpec, find_envspec
 
         project_root = _resolve_root()
         cli_name = None
         if parent_app is not None:
             cli_name = getattr(parent_app, "_name", None)
 
+        # Load [agents] spec from .dekk.toml if available.
+        agents_spec: AgentsSpec | None = None
+        envspec_path = find_envspec(project_root)
+        if envspec_path:
+            try:
+                agents_spec = EnvironmentSpec.from_file(envspec_path).agents
+            except Exception:
+                pass  # Fall back to defaults when the spec is unparseable.
+
         manager = AgentConfigManager(
             project_root=project_root,
             source_dir=source_dir,
             cli_name=cli_name,
+            agents_spec=agents_spec,
         )
 
         try:
@@ -140,6 +166,8 @@ def create_agents_app(
             )
             print_info(f"Hint: {hint}")
             raise typer.Exit(1) from exc
+        except Exception as exc:
+            _handle_dekk_error(exc)
 
         for item in result.generated:
             print_success(f"Generated {item}")
@@ -181,7 +209,7 @@ def create_agents_app(
     ) -> None:
         """Remove generated agent config files while keeping the source directory."""
         from dekk.agents.generators import AgentConfigManager
-        from dekk.cli.styles import print_info, print_success
+        from dekk.cli.styles import print_error, print_info, print_success
 
         project_root = _resolve_root()
         cli_name = None
@@ -193,7 +221,10 @@ def create_agents_app(
             source_dir=source_dir,
             cli_name=cli_name,
         )
-        result = manager.clean(target=target)
+        try:
+            result = manager.clean(target=target)
+        except Exception as exc:
+            _handle_dekk_error(exc)
         if not result.removed:
             print_info("Nothing to clean")
             return

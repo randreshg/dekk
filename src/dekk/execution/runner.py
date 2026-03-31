@@ -106,7 +106,13 @@ def _bootstrap_venv(pyproject_path: Path, venv_path: Path) -> None:
             cwd=str(project_dir),
             env=env,
         )
-        if result.returncode == 0 and _venv_executable(venv_path, "python").is_file():
+        if result.returncode != 0:
+            print(
+                f"dekk: poetry install failed (exit {result.returncode}), "
+                "falling back to manual venv creation",
+                file=sys.stderr,
+            )
+        elif _venv_executable(venv_path, "python").is_file():
             print("Done.", file=sys.stderr)
             return
 
@@ -142,7 +148,7 @@ def _bootstrap_venv(pyproject_path: Path, venv_path: Path) -> None:
         pip = str(_venv_executable(venv_path, "pip"))
         subprocess.run(
             [pip, "install", *deps],
-            check=False,
+            check=True,
         )
 
     print("Done.", file=sys.stderr)
@@ -227,4 +233,8 @@ def run_script(script_path: str, args: list[str]) -> None:
         _activate_dekk_env(dekk_toml, script.parent)
 
     # Exec the script with the venv Python
-    os.execvp(str(venv_python), [str(venv_python), str(script), *args])
+    if sys.platform == "win32":
+        result = subprocess.run([str(venv_python), str(script), *args])
+        sys.exit(result.returncode)
+    else:
+        os.execvp(str(venv_python), [str(venv_python), str(script), *args])

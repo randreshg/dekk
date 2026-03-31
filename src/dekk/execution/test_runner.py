@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Final
 
 from dekk.detection.build import BuildSystem, BuildSystemDetector
-from dekk.cli.errors import NotFoundError, RuntimeError
+from dekk.cli.errors import NotFoundError, DekkRuntimeError
 from dekk.environment.spec import find_envspec
 
 PYTHON_SYSTEMS: Final = {
@@ -197,5 +197,5 @@ def run_test_plan(plan: TestPlan) -> int:
 
     proc = subprocess.run(plan.cmd, cwd=plan.cwd, env=env)
     if proc.returncode < 0:
-        raise RuntimeError(f"Test command exited abnormally: {proc.returncode}")
+        raise DekkRuntimeError(f"Test command exited abnormally: {proc.returncode}")
     return proc.returncode

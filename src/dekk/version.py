@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from functools import total_ordering
 
@@ -43,6 +43,7 @@ class Version:
     patch: int = 0
     pre: str | None = None
     build: str | None = None
+    _n_components: int = field(default=3, compare=False, repr=False)
 
     # -- parsing --
 
@@ -67,12 +68,19 @@ class Version:
         m = cls._PATTERN.match(text.strip())
         if not m:
             raise ValueError(f"Cannot parse version: {text!r}")
+        if m.group("patch") is not None:
+            n_components = 3
+        elif m.group("minor") is not None:
+            n_components = 2
+        else:
+            n_components = 1
         return cls(
             major=int(m.group("major")),
             minor=int(m.group("minor") or 0),
             patch=int(m.group("patch") or 0),
             pre=m.group("pre"),
             build=m.group("build"),
+            _n_components=n_components,
         )
 
     @classmethod
@@ -99,7 +107,7 @@ class Version:
     # -- comparison --
 
     @property
-    def _cmp_tuple(self) -> tuple[int, int, int, bool, tuple[str | int, ...]]:
+    def _cmp_tuple(self) -> tuple[int, int, int, bool, tuple[tuple[int, int | str], ...]]:
         """Tuple used for ordering.
 
         Pre-release versions sort *before* the release, so we use
@@ -111,12 +119,14 @@ class Version:
             # No pre-release: sorts after any pre-release of same version
             return (self.major, self.minor, self.patch, False, ())
 
-        parts: list[str | int] = []
+        parts: list[tuple[int, int | str]] = []
         for segment in self.pre.split("."):
             if segment.isdigit():
-                parts.append(int(segment))
+                # (0, n) -- numeric segments sort before string segments
+                parts.append((0, int(segment)))
             else:
-                parts.append(segment)
+                # (1, s) -- string segments sort after numeric segments
+                parts.append((1, segment))
         return (self.major, self.minor, self.patch, True, tuple(parts))
 
     def __eq__(self, other: object) -> bool:
@@ -203,7 +213,7 @@ class VersionConstraint:
         if self.op is ConstraintOp.COMPAT:
             # ~=X.Y  -> >=X.Y, <(X+1).0
             # ~=X.Y.Z -> >=X.Y.Z, <X.(Y+1).0
-            if target.patch > 0:
+            if target._n_components >= 3:
                 upper = target.bump_minor()
             else:
                 upper = target.bump_major()

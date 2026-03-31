@@ -279,7 +279,8 @@ class TestGenerators:
         manager = AgentConfigManager(project_root, agents=(StubAgent(),))
         result = manager.generate("stub")
 
-        assert result.generated == ["STUB.md"]
+        assert "STUB.md" in result.generated
+        assert AGENTS_JSON in result.generated
         assert (project_root / "STUB.md").is_file()
 
     def test_clean_all_removes_generated_outputs(self, project_root: Path) -> None:

@@ -145,7 +145,7 @@ class DependencyError(DekkError):
     exit_code = ExitCodes.DEPENDENCY_ERROR
 
 
-class TimeoutError(DekkError):
+class DekkTimeoutError(DekkError):
     """Raised when an operation exceeds its time limit.
 
     Examples: network request timeout, build step exceeded deadline,
@@ -155,7 +155,7 @@ class TimeoutError(DekkError):
     exit_code = ExitCodes.TIMEOUT
 
 
-class PermissionError(DekkError):
+class DekkPermissionError(DekkError):
     """Raised when the process lacks permissions for an operation.
 
     Examples: cannot write to directory, insufficient filesystem
@@ -165,7 +165,7 @@ class PermissionError(DekkError):
     exit_code = ExitCodes.PERMISSION_ERROR
 
 
-class RuntimeError(DekkError):
+class DekkRuntimeError(DekkError):
     """Raised for errors that occur during command execution.
 
     A catch-all for execution failures that do not fit a more
@@ -176,3 +176,9 @@ class RuntimeError(DekkError):
     """
 
     exit_code = ExitCodes.RUNTIME_ERROR
+
+
+# Backward-compatible aliases (deprecated; use the Dekk-prefixed names).
+TimeoutError = DekkTimeoutError  # noqa: A001
+PermissionError = DekkPermissionError  # noqa: A001
+RuntimeError = DekkRuntimeError  # noqa: A001
