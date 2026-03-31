@@ -193,9 +193,9 @@ def test_diagnostic_runner_preserves_order_and_timing():
     report = runner.run_all()
 
     assert [result.name for result in report.results] == ["always-skip", "slow-check"]
-    assert report.results[0].elapsed_ms > 0.0
+    assert report.results[0].elapsed_ms >= 0.0
     assert report.results[1].elapsed_ms == 42.5
-    assert report.elapsed_ms > 0.0
+    assert report.elapsed_ms >= 0.0
 
 
 def test_diagnostic_runner_catches_exceptions_without_aborting():

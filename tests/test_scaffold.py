@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import pytest
 
@@ -176,9 +177,14 @@ def test_detector_finds_entry_points_across_languages(tmp_path, detector):
     go_result = detector.detect(go_root)
     ts_result = detector.detect(ts_root)
 
-    assert python_result.entry_points == ("main.py", "app.py", "src/pkg/__main__.py")
-    assert go_result.entry_points == ("main.go", "cmd/server/main.go")
-    assert ts_result.entry_points == ("src/index.ts",)
+    # entry_points uses str(Path.relative_to(...)) which is OS-dependent;
+    # normalize expected values through Path() for platform-agnostic separators.
+    def _ep(*posix_paths: str) -> tuple[str, ...]:
+        return tuple(str(Path(p)) for p in posix_paths)
+
+    assert python_result.entry_points == _ep("main.py", "app.py", "src/pkg/__main__.py")
+    assert go_result.entry_points == _ep("main.go", "cmd/server/main.go")
+    assert ts_result.entry_points == _ep("src/index.ts",)
 
 
 def test_project_type_and_templates_expose_derived_properties():

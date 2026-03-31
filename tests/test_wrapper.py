@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import stat
+import sys
 import textwrap
 from pathlib import Path
 from unittest.mock import patch
@@ -18,6 +19,8 @@ from dekk.execution.wrapper import (
     WrapperGenerator,
     _dir_in_path,
 )
+
+_unix_only = pytest.mark.skipif(sys.platform == "win32", reason="Unix shell wrapper tests")
 
 # ---------------------------------------------------------------------------
 # sh_quote
@@ -96,6 +99,7 @@ class TestCmdEscapeValue:
 # ---------------------------------------------------------------------------
 
 
+@_unix_only
 class TestGenerate:
     """Tests for WrapperGenerator.generate()."""
 
@@ -282,6 +286,7 @@ class TestGenerate:
 # ---------------------------------------------------------------------------
 
 
+@_unix_only
 class TestFromActivation:
     """Tests for WrapperGenerator.from_activation() and _generate_from_activation."""
 
@@ -367,6 +372,7 @@ class TestFromActivation:
 # ---------------------------------------------------------------------------
 
 
+@_unix_only
 class TestInstall:
     """Tests for WrapperGenerator.install()."""
 
@@ -514,6 +520,7 @@ class TestInstall:
 # ---------------------------------------------------------------------------
 
 
+@_unix_only
 class TestInstallFromSpec:
     """Tests for WrapperGenerator.install_from_spec()."""
 
@@ -624,6 +631,7 @@ class TestInstallFromSpec:
 # ---------------------------------------------------------------------------
 
 
+@_unix_only
 class TestUninstall:
     """Tests for WrapperGenerator.uninstall()."""
 
@@ -689,6 +697,7 @@ class TestUninstall:
 # ---------------------------------------------------------------------------
 
 
+@_unix_only
 class TestDirInPath:
     def test_dir_in_path(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
         d = tmp_path / "mybin"
