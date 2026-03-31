@@ -318,7 +318,7 @@ def install(
         raise NotFoundError(f"Target not found: {target}", hint="Build it first or check the path")
 
     bootstrap = ensure_envspec(target.parent, target=target) if spec_file is None else None
-    resolved_spec_file = spec_file.resolve() if spec_file else bootstrap.path
+    resolved_spec_file = spec_file.resolve() if spec_file else bootstrap.path  # type: ignore[union-attr]
     install_name = name or target.stem
     installer = BinaryInstaller(project_root=resolved_spec_file.parent)
 

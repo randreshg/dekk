@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from dekk.agents.constants import (
     COPILOT_DIR,
     COPILOT_INSTRUCTIONS,
@@ -14,7 +16,7 @@ from dekk.agents.providers.base import AgentContext, DekkAgent
 from dekk.agents.providers.shared import remove_dir_if_empty, remove_file, remove_tree
 
 
-def generate_copilot_per_directory(project_root, rules: list[RuleDefinition]) -> None:
+def generate_copilot_per_directory(project_root: Path, rules: list[RuleDefinition]) -> None:
     """Generate `.github/instructions/` from rules with Copilot `applyTo:` frontmatter."""
     instr_dir = project_root / COPILOT_DIR / COPILOT_PER_DIR
     instr_dir.mkdir(parents=True, exist_ok=True)
