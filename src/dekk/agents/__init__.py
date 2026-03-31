@@ -27,7 +27,6 @@ from dekk.agents.discovery import (
     discover_skills,
     parse_frontmatter,
 )
-from dekk.agents.flows import generate_flow
 from dekk.agents.generators import (
     AgentConfigManager,
     ClaudeCodeAgent,
@@ -51,7 +50,6 @@ __all__ = [
     "create_agents_app",
     "discover_rules",
     "discover_skills",
-    "generate_flow",
     "install_codex_skills",
     "parse_frontmatter",
     "scaffold_agents_dir",

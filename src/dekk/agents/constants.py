@@ -21,6 +21,9 @@ PROJECT_MD: Final = "project.md"
 AGENTS_REFERENCE_MD: Final = "agents-reference.md"
 RULES_GLOB: Final = "*.md"
 
+# Built-in skill names for auto-discovery
+WORKTREE_SKILL_NAME: Final = "worktree"
+
 # Frontmatter required fields
 REQUIRED_SKILL_FIELDS: Final = ("name", "description")
 
@@ -75,12 +78,15 @@ CODEX_HOME_DEFAULT: Final = ".codex"
 CODEX_SKILLS_DIR_NAME: Final = "skills"
 
 # ---------------------------------------------------------------------------
-# Flow generation
+# Skills index (routing layer)
 # ---------------------------------------------------------------------------
 
-DEFAULT_FLOWS_DIR: Final = "flows"
+SKILLS_INDEX_MD: Final = "skills_index.md"
 
+# ---------------------------------------------------------------------------
 # TOML keys for project name lookup
+# ---------------------------------------------------------------------------
+
 TOML_PROJECT_KEY: Final = "project"
 TOML_NAME_KEY: Final = "name"
 TOML_COMMANDS_KEY: Final = "commands"

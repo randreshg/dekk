@@ -8,6 +8,7 @@ from dekk.agents.constants import (
     CLAUDE_MD,
     CLAUDE_RULES_DIR,
     CLAUDE_SKILLS_DIR,
+    SKILLS_INDEX_MD,
     TARGET_CLAUDE,
 )
 from dekk.agents.discovery import RuleDefinition
@@ -42,6 +43,14 @@ class ClaudeCodeAgent(DekkAgent):
         claude_skills = context.project_root / CLAUDE_SKILLS_DIR
         install_skills_to_dir(context.skills, claude_skills)
         generate_claude_rules(context.project_root, context.rules)
+
+        # Generate skills index directly in the output directory.
+        if context.skills:
+            from dekk.agents.generators import render_skills_index
+
+            (claude_skills / SKILLS_INDEX_MD).write_text(
+                render_skills_index(context.skills), encoding="utf-8"
+            )
 
         return [
             CLAUDE_MD,

@@ -26,6 +26,7 @@ from dekk.agents.constants import (
     TOML_NAME_KEY,
     TOML_PROJECT_KEY,
     TOML_RUN_KEY,
+    WORKTREE_SKILL_NAME,
 )
 from dekk.detection.build import BuildSystem, BuildSystemDetector
 from dekk.detection.scaffold import ProjectLanguage, ProjectTypeDetector
@@ -86,6 +87,56 @@ DETECTED_TEST_COMMANDS = {
     BuildSystem.GRADLE: "gradle test",
     BuildSystem.MAKE: "make test",
 }
+
+
+GIT_DIR = ".git"
+
+WORKTREE_SKILL_BODY = """\
+---
+name: worktree
+description: Create and manage isolated git worktrees for parallel work
+user-invocable: true
+---
+
+# Worktree
+
+Use `dekk worktree` to manage git worktrees with automatic environment setup.
+
+## Commands
+
+- `dekk worktree create <branch>` — create a new worktree with a fresh branch
+- `dekk worktree create <branch> --base main` — branch from main
+- `dekk worktree create <branch> --existing` — checkout an existing branch
+- `dekk worktree create <branch> --no-setup` — skip automatic environment setup
+- `dekk worktree list` — show all worktrees and their dekk status
+- `dekk worktree remove <name>` — remove a worktree
+- `dekk worktree remove <name> --force` — force-remove even with modifications
+- `dekk worktree prune` — clean up stale references
+
+## Project Integration
+
+Worktrees are fully integrated with dekk's project command system:
+
+1. Create a worktree: `dekk worktree create feature-x --base main`
+2. Change to it: `cd ../$(basename $PWD)-worktrees/feature-x`
+3. All project commands work immediately — `dekk` walks up to find `.dekk.toml`
+4. The `.agents/` source of truth is shared across all worktrees (same repo)
+
+## Key Behaviors
+
+- Worktrees share the same `.dekk.toml` and `.agents/` (same git repo)
+- Each worktree gets its own independent working directory for builds, tests, etc.
+- `dekk worktree create` auto-runs `dekk setup` to prepare the environment
+- By default worktrees are created at `../<repo>-worktrees/<branch>`
+- Branch names with slashes (e.g., `feature/login`) become `feature-login` in the path
+
+## When to Use
+
+- Working on a feature while keeping main branch clean for reference
+- Running tests on one branch while developing on another
+- Reviewing a PR without stashing your current work
+- Parallel builds or CI-like isolation
+"""
 
 
 @dataclass
@@ -251,6 +302,28 @@ def commands_to_skills(commands: list[DiscoveredCommand], skills_dir: Path) -> l
     return created
 
 
+def _maybe_scaffold_worktree_skill(project_root: Path, skills_dir: Path) -> Path | None:
+    """Auto-scaffold a worktree skill if the project is a git repo.
+
+    Only creates the skill if the project has a ``.git`` directory and the
+    worktree skill doesn't already exist.
+
+    Returns:
+        Path to the created SKILL.md, or None if skipped.
+    """
+    if not (project_root / GIT_DIR).exists():
+        return None
+
+    skill_dir = skills_dir / WORKTREE_SKILL_NAME
+    skill_file = skill_dir / SKILL_FILENAME
+    if skill_file.exists():
+        return None
+
+    skill_dir.mkdir(parents=True, exist_ok=True)
+    skill_file.write_text(WORKTREE_SKILL_BODY, encoding="utf-8")
+    return skill_file
+
+
 def scaffold_agents_dir(
     project_root: Path,
     source_dir: str = DEFAULT_SOURCE_DIR,
@@ -326,6 +399,9 @@ def scaffold_agents_dir(
 
     # Generate skill templates from commands
     commands_to_skills(all_commands, skills_dir)
+
+    # Auto-generate worktree skill if this is a git repo
+    _maybe_scaffold_worktree_skill(project_root, skills_dir)
 
     # Generate project.md
     project_md = target / PROJECT_MD
