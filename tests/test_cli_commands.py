@@ -10,13 +10,11 @@ from unittest.mock import MagicMock, patch
 
 from rich.console import Console
 
-from dekk.detection.ci import CIBuildInfo, CIInfo, CIProvider
 from dekk.cli.cli_commands import (
     run_doctor,
     run_env,
     run_version,
 )
-from dekk.detection.conda import CondaEnvironment
 from dekk.core.context import (
     ContextWorkspaceInfo,
     CPUInfo,
@@ -24,6 +22,8 @@ from dekk.core.context import (
     GPUInfo,
     MemoryInfo,
 )
+from dekk.detection.ci import CIBuildInfo, CIInfo, CIProvider
+from dekk.detection.conda import CondaEnvironment
 from dekk.detection.detect import PlatformInfo
 
 # ---------------------------------------------------------------------------

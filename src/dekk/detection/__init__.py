@@ -8,7 +8,7 @@ from .conda import COMMON_INSTALL_PATHS, CondaDetector, CondaEnvironment, CondaV
 from .deps import DependencyChecker, DependencyResult, DependencySpec, ToolChecker
 from .detect import PlatformDetector, PlatformInfo
 from .libpath import LibraryPathInfo, LibraryPathResolver
-from .lockfile import LockfileInfo, LockfileKind, LockfileParser, LockedDependency
+from .lockfile import LockedDependency, LockfileInfo, LockfileKind, LockfileParser
 from .scaffold import (
     FileTemplate,
     ProjectFramework,

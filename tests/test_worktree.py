@@ -19,7 +19,6 @@ from dekk.project.worktree import (
     remove_worktree,
 )
 
-
 # ---------------------------------------------------------------------------
 # WorktreeInfo
 # ---------------------------------------------------------------------------
@@ -32,7 +31,11 @@ class TestWorktreeInfo:
             info.branch = "other"  # type: ignore[misc]
 
     def test_name_from_path(self) -> None:
-        info = WorktreeInfo(path=Path("/tmp/repo-worktrees/feature-x"), branch="feature-x", commit="abc")
+        info = WorktreeInfo(
+            path=Path("/tmp/repo-worktrees/feature-x"),
+            branch="feature-x",
+            commit="abc",
+        )
         assert info.name == "feature-x"
 
     def test_defaults(self) -> None:
@@ -210,7 +213,6 @@ class TestCreateWorktree:
     @patch("dekk.project.worktree.subprocess.run")
     def test_success(self, mock_run: object, tmp_path: Path) -> None:
         (tmp_path / ".git").mkdir()
-        wt_path = tmp_path.parent / f"{tmp_path.name}-worktrees" / "feat"
         mock_run.return_value = subprocess.CompletedProcess(  # type: ignore[attr-defined]
             args=[], returncode=0, stdout="", stderr=""
         )

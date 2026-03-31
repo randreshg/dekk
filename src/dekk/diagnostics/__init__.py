@@ -6,8 +6,8 @@ from .diagnostic import (
     DiagnosticReport,
     DiagnosticRunner,
 )
-from .formatters import JsonFormatter, MarkdownFormatter, TextFormatter
 from .diagnostic_checks import CIEnvironmentCheck, DependencyCheck, PlatformCheck
+from .formatters import JsonFormatter, MarkdownFormatter, TextFormatter
 from .remediate import (
     DetectedIssue,
     FixResult,

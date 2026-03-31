@@ -62,7 +62,10 @@ class WindowsDekkOS:
         return prefix / WINDOWS_LIBRARY_DIRNAME / WINDOWS_LIB_DIRNAME
 
     def cmake_package_dir(self, prefix: Path, package: str) -> Path:
-        return prefix / WINDOWS_LIBRARY_DIRNAME / WINDOWS_LIB_DIRNAME / WINDOWS_CMAKE_DIRNAME / package
+        return (
+            prefix / WINDOWS_LIBRARY_DIRNAME / WINDOWS_LIB_DIRNAME
+            / WINDOWS_CMAKE_DIRNAME / package
+        )
 
     def cmake_runtime_dir(self, prefix: Path) -> Path:
         return prefix / WINDOWS_LIBRARY_DIRNAME / WINDOWS_BIN_DIRNAME

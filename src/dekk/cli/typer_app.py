@@ -187,9 +187,9 @@ class Typer:
         """Auto-activate environment from .dekk.toml before each command."""
         import os
 
-        from dekk.environment.activation import EnvironmentActivator
         from dekk.cli.errors import DependencyError, NotFoundError
         from dekk.cli.styles import print_error
+        from dekk.environment.activation import EnvironmentActivator
         from dekk.environment.spec import find_envspec
 
         spec_file = find_envspec()

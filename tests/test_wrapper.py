@@ -11,8 +11,8 @@ from unittest.mock import patch
 import pytest
 
 from dekk.environment.activation import ActivationResult
-from dekk.execution.os import WindowsDekkOS
 from dekk.execution.install import InstallResult
+from dekk.execution.os import WindowsDekkOS
 from dekk.execution.os.shared import cmd_escape, sh_escape_double, sh_quote
 from dekk.execution.wrapper import (
     WrapperGenerator,

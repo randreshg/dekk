@@ -9,13 +9,13 @@ from unittest.mock import patch
 import pytest
 
 from dekk.execution.os import PosixDekkOS, WindowsDekkOS
-from dekk.shell import ActivationConfig, ActivationScriptBuilder, EnvVar, ShellKind
 from dekk.execution.toolchain import (
     CMakeToolchain,
     CondaToolchain,
     EnvVarBuilder,
     ToolchainProfile,
 )
+from dekk.shell import ActivationConfig, ActivationScriptBuilder, EnvVar, ShellKind
 
 # ---------------------------------------------------------------------------
 # EnvVarBuilder

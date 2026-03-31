@@ -4,8 +4,8 @@ import pytest
 
 
 def test_rejects_legacy_conda_section(tmp_path: Path) -> None:
-    from dekk.environment.spec import EnvironmentSpec
     from dekk.cli.errors import ValidationError
+    from dekk.environment.spec import EnvironmentSpec
 
     spec_path = tmp_path / ".dekk.toml"
     spec_path.write_text(

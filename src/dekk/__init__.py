@@ -57,7 +57,12 @@ _MODULE_ATTRS: dict[str, list[str]] = {
     "dekk.execution.wrapper": ["WrapperGenerator"],
     # -- Detection & Platform --
     "dekk.detection.detect": ["PlatformDetector", "PlatformInfo"],
-    "dekk.detection.deps": ["DependencyChecker", "DependencySpec", "DependencyResult", "ToolChecker"],
+    "dekk.detection.deps": [
+        "DependencyChecker",
+        "DependencySpec",
+        "DependencyResult",
+        "ToolChecker",
+    ],
     "dekk.detection.conda": [
         "COMMON_INSTALL_PATHS",
         "CondaDetector",
@@ -69,7 +74,12 @@ _MODULE_ATTRS: dict[str, list[str]] = {
     # -- CI --
     "dekk.detection.ci": ["CIDetector", "CIInfo", "CIProvider", "CIBuildAdvisor", "CIBuildHints"],
     # -- Workspace --
-    "dekk.detection.workspace": ["WorkspaceDetector", "WorkspaceInfo", "WorkspaceKind", "SubProject"],
+    "dekk.detection.workspace": [
+        "WorkspaceDetector",
+        "WorkspaceInfo",
+        "WorkspaceKind",
+        "SubProject",
+    ],
     # -- Versioning --
     "dekk.core.version": [
         "Version",
@@ -78,12 +88,31 @@ _MODULE_ATTRS: dict[str, list[str]] = {
         "compare_versions",
         "version_satisfies",
     ],
-    "dekk.detection.version_managers": ["VersionManagerDetector", "VersionManagerInfo", "ManagedVersion"],
+    "dekk.detection.version_managers": [
+        "VersionManagerDetector",
+        "VersionManagerInfo",
+        "ManagedVersion",
+    ],
     # -- Lockfiles --
-    "dekk.detection.lockfile": ["LockfileParser", "LockfileInfo", "LockfileKind", "LockedDependency"],
+    "dekk.detection.lockfile": [
+        "LockfileParser",
+        "LockfileInfo",
+        "LockfileKind",
+        "LockedDependency",
+    ],
     # -- Compiler & Build --
-    "dekk.detection.compiler": ["CompilerDetector", "CompilerFamily", "CompilerInfo", "ToolchainInfo"],
-    "dekk.detection.build": ["BuildSystemDetector", "BuildSystemInfo", "BuildSystem", "BuildTarget"],
+    "dekk.detection.compiler": [
+        "CompilerDetector",
+        "CompilerFamily",
+        "CompilerInfo",
+        "ToolchainInfo",
+    ],
+    "dekk.detection.build": [
+        "BuildSystemDetector",
+        "BuildSystemInfo",
+        "BuildSystem",
+        "BuildTarget",
+    ],
     "dekk.detection.cache": ["BuildCacheDetector", "BuildCacheInfo", "CacheKind"],
     # -- Shell --
     "dekk.shell": [
@@ -99,7 +128,12 @@ _MODULE_ATTRS: dict[str, list[str]] = {
         "AliasSuggestor",
     ],
     # -- Toolchain --
-    "dekk.execution.toolchain": ["ToolchainProfile", "EnvVarBuilder", "CMakeToolchain", "CondaToolchain"],
+    "dekk.execution.toolchain": [
+        "ToolchainProfile",
+        "EnvVarBuilder",
+        "CMakeToolchain",
+        "CondaToolchain",
+    ],
     # -- OS Abstraction --
     "dekk.execution.os": ["DekkOS", "PosixDekkOS", "WindowsDekkOS", "get_dekk_os"],
     # -- Environment --
@@ -116,7 +150,11 @@ _MODULE_ATTRS: dict[str, list[str]] = {
         "JsonFormatter",
         "MarkdownFormatter",
     ],
-    "dekk.diagnostics.diagnostic_checks": ["PlatformCheck", "DependencyCheck", "CIEnvironmentCheck"],
+    "dekk.diagnostics.diagnostic_checks": [
+        "PlatformCheck",
+        "DependencyCheck",
+        "CIEnvironmentCheck",
+    ],
     # -- Library Paths --
     "dekk.detection.libpath": ["LibraryPathInfo", "LibraryPathResolver"],
     # -- Commands --
@@ -128,7 +166,12 @@ _MODULE_ATTRS: dict[str, list[str]] = {
         "command",
     ],
     # -- Validation --
-    "dekk.diagnostics.validate": ["CheckStatus", "CheckResult", "ValidationReport", "EnvironmentValidator"],
+    "dekk.diagnostics.validate": [
+        "CheckStatus",
+        "CheckResult",
+        "ValidationReport",
+        "EnvironmentValidator",
+    ],
     # -- Remediation --
     "dekk.diagnostics.remediate": [
         "IssueSeverity",

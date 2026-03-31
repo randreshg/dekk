@@ -54,7 +54,8 @@ def create_worktree_app() -> typer.Typer:
     def create(
         branch: str = typer.Argument(..., help="Branch name for the new worktree"),
         path: str | None = typer.Option(
-            None, "--path", "-p", help="Directory for the worktree (default: ../<repo>-worktrees/<branch>)"
+            None, "--path", "-p",
+            help="Directory for the worktree (default: ../<repo>-worktrees/<branch>)"
         ),
         base: str = typer.Option("HEAD", "--base", "-b", help="Base commit or branch"),
         existing: bool = typer.Option(
@@ -101,7 +102,10 @@ def create_worktree_app() -> typer.Typer:
     @app.command()
     def remove(
         name: str = typer.Argument(..., help="Worktree path or directory name"),
-        force: bool = typer.Option(False, "--force", "-f", help="Force removal even with modifications"),
+        force: bool = typer.Option(
+            False, "--force", "-f",
+            help="Force removal even with modifications",
+        ),
     ) -> None:
         """Remove a git worktree."""
         from dekk.cli.styles import print_error, print_success

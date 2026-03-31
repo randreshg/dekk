@@ -61,7 +61,9 @@ class ClaudeCodeAgent(DekkAgent):
     def clean(self, context: AgentContext) -> list[str]:
         removed: list[str] = []
         removed.extend(remove_file(context.project_root / CLAUDE_MD, CLAUDE_MD))
-        removed.extend(remove_tree(context.project_root / CLAUDE_SKILLS_DIR, f"{CLAUDE_SKILLS_DIR}/"))
+        removed.extend(
+            remove_tree(context.project_root / CLAUDE_SKILLS_DIR, f"{CLAUDE_SKILLS_DIR}/")
+        )
         removed.extend(remove_tree(context.project_root / CLAUDE_RULES_DIR, f"{CLAUDE_RULES_DIR}/"))
         remove_dir_if_empty(context.project_root / Path(CLAUDE_SKILLS_DIR).parts[0])
         return removed

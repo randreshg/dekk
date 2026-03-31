@@ -202,10 +202,13 @@ def _make_app() -> typer.Typer:
 
     @app.command()
     def setup(
-        force: bool = typer.Option(False, "--force", "-f", help="Recreate the runtime environment even if it exists"),
+        force: bool = typer.Option(
+            False, "--force", "-f",
+            help="Recreate the runtime environment even if it exists",
+        ),
     ) -> None:
         """Set up the configured runtime environment and npm tools from `.dekk.toml`."""
-        from dekk.cli.styles import print_error, print_info, print_success, print_warning
+        from dekk.cli.styles import print_error, print_info, print_success
         from dekk.environment.setup import run_setup
 
         project_root = Path.cwd().resolve()
@@ -232,7 +235,7 @@ def _make_app() -> typer.Typer:
 
         if result.environment_prefix:
             print_info(f"Runtime available at: {result.environment_prefix}")
-            print_info(f"Activate with: eval \"$(dekk activate --shell bash)\"")
+            print_info("Activate with: eval \"$(dekk activate --shell bash)\"")
 
     # -- Agent config management sub-app --
     from dekk.agents.app import create_agents_app

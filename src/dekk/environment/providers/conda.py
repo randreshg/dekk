@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
-import os
 from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Final
@@ -96,14 +96,23 @@ class CondaEnv(DekkEnv):
         except OSError as exc:
             return DekkEnvSetupResult(errors=[f"Failed to run {conda_cmd}: {exc}"])
 
-        return DekkEnvSetupResult(prefix=self.prefix if self.exists() else None, created=not existing, errors=errors)
+        return DekkEnvSetupResult(
+            prefix=self.prefix if self.exists() else None,
+            created=not existing,
+            errors=errors,
+        )
 
     def install_npm_packages(self, packages: Mapping[str, str]) -> tuple[list[str], list[str]]:
         """Install npm packages globally into this runtime environment."""
         os_strategy = get_dekk_os()
-        npm_bin = _find_runtime_executable(self.prefix, os_strategy.npm_command_candidates(), os_strategy)
+        npm_bin = _find_runtime_executable(
+            self.prefix, os_strategy.npm_command_candidates(), os_strategy
+        )
         if npm_bin is None:
-            return [], [f"npm not found in {self.type_name} runtime paths — add nodejs to environment packages"]
+            return [], [
+                f"npm not found in {self.type_name} runtime paths"
+                " — add nodejs to environment packages"
+            ]
 
         runtime_paths = os_strategy.conda_runtime_paths(self.prefix)
         runtime_path = os_strategy.path_separator.join(str(path) for path in runtime_paths)
@@ -154,7 +163,9 @@ def _find_conda_cmd() -> str | None:
     return None
 
 
-def _find_runtime_executable(prefix: Path, candidates: tuple[str, ...], os_strategy: DekkOS) -> Path | None:
+def _find_runtime_executable(
+    prefix: Path, candidates: tuple[str, ...], os_strategy: DekkOS
+) -> Path | None:
     for runtime_dir in os_strategy.conda_runtime_paths(prefix):
         for candidate in candidates:
             executable = runtime_dir / candidate
