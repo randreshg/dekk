@@ -26,7 +26,7 @@ _EXPORTS = {
 __all__ = sorted(_EXPORTS)
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> object:
     module_name = _EXPORTS.get(name)
     if module_name is None:
         raise AttributeError(f"module 'dekk.execution' has no attribute {name!r}")
