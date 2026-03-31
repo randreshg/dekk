@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from dekk.agents.constants import AGENTS_JSON, AGENTS_MD, CLAUDE_MD, CURSORRULES
 
+from dekk.agents.constants import AGENTS_JSON, AGENTS_MD, CLAUDE_MD, CURSORRULES
 
 # ============================================================================
 # Fixtures
@@ -481,7 +481,7 @@ class TestScaffold:
 
         # First scaffold
         scaffold_agents_dir(tmp_path)
-        original_content = (tmp_path / ".agents" / "project.md").read_text()
+        (tmp_path / ".agents" / "project.md").read_text()  # ensure file exists
 
         # Modify project.md
         (tmp_path / ".agents" / "project.md").write_text("Custom content")
@@ -694,9 +694,9 @@ class TestProjectRootResolution:
 
     def test_fallback_to_cwd(self, tmp_path: Path) -> None:
         """_find_project_root falls back to cwd when nothing is found."""
-        from dekk.agents.app import _find_project_root
-
         import os
+
+        from dekk.agents.app import _find_project_root
         original_cwd = os.getcwd()
         try:
             os.chdir(tmp_path)
@@ -793,7 +793,6 @@ class TestProjectRootResolution:
         from typer.testing import CliRunner
 
         from dekk.agents.app import create_agents_app
-
         from dekk.agents.generators import AgentConfigManager
 
         AgentConfigManager(project_root).generate("all")

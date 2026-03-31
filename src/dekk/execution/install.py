@@ -9,8 +9,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Final, Literal
 
 from ..cli.errors import NotFoundError
-from .os import get_dekk_os
 from ..shell import ShellDetector, ShellKind
+from .os import get_dekk_os
 
 if TYPE_CHECKING:
     from ..environment.spec import EnvironmentSpec

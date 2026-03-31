@@ -30,10 +30,10 @@ import os
 from pathlib import Path
 
 from ..cli.errors import NotFoundError, ValidationError
-from .os import get_dekk_os
 from ..environment.activation import ActivationResult, EnvironmentActivator
 from ..environment.spec import EnvironmentSpec
 from .install import DEFAULT_INSTALL_DIRNAME, InstallResult
+from .os import get_dekk_os
 
 # ---------------------------------------------------------------------------
 # WrapperGenerator

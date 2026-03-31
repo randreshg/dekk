@@ -34,8 +34,8 @@ from dekk.agents.generators import (
     CopilotAgent,
     CursorAgent,
 )
-from dekk.agents.providers import DekkAgent
 from dekk.agents.installer import install_codex_skills
+from dekk.agents.providers import DekkAgent
 from dekk.agents.scaffold import scaffold_agents_dir
 
 __all__ = [

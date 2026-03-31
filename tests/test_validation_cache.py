@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from dekk.diagnostics.validation_cache import ValidationCache
 from dekk.core.paths import user_cache_dir
+from dekk.diagnostics.validation_cache import ValidationCache
 
 
 def test_validation_cache_uses_shared_user_cache_dir(tmp_path, monkeypatch):

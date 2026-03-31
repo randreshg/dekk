@@ -226,7 +226,7 @@ def create_agents_app(
     ) -> None:
         """Remove generated agent config files while keeping the source directory."""
         from dekk.agents.generators import AgentConfigManager
-        from dekk.cli.styles import print_error, print_info, print_success
+        from dekk.cli.styles import print_info, print_success
 
         project_root = _resolve_root()
         cli_name = None
@@ -277,7 +277,11 @@ def create_agents_app(
         pm_color = Colors.SUCCESS if pm_ok else Colors.WARNING
         pm_state = "present" if pm_ok else "missing"
         console.print(f"  {PROJECT_MD}: [{pm_color}]{pm_state}[/{pm_color}]")
-        console.print(f"  {SKILLS_DIR_NAME}/: [{Colors.SUCCESS}]{len(skills)} skill(s)[/{Colors.SUCCESS}]")
+        skill_count = len(skills)
+        console.print(
+            f"  {SKILLS_DIR_NAME}/: [{Colors.SUCCESS}]"
+            f"{skill_count} skill(s)[/{Colors.SUCCESS}]"
+        )
         console.print()
 
         # Generated config files

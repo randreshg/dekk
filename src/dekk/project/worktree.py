@@ -258,7 +258,10 @@ def remove_worktree(
         return False, "git not found"
 
     if result.returncode != 0:
-        return False, result.stderr.strip() or f"git worktree remove failed (exit {result.returncode})"
+        return False, (
+            result.stderr.strip()
+            or f"git worktree remove failed (exit {result.returncode})"
+        )
 
     return True, f"Removed worktree: {target}"
 

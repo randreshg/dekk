@@ -11,8 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Final
 
+from dekk.cli.errors import DekkRuntimeError, NotFoundError
 from dekk.detection.build import BuildSystem, BuildSystemDetector
-from dekk.cli.errors import NotFoundError, DekkRuntimeError
 from dekk.environment.spec import find_envspec
 
 PYTHON_SYSTEMS: Final = {
@@ -184,8 +184,8 @@ def run_test_plan(plan: TestPlan) -> int:
     env = os.environ.copy()
     spec_file = find_envspec(plan.cwd)
     if spec_file is not None:
-        from dekk.environment.activation import EnvironmentActivator
         from dekk.cli.errors import DependencyError
+        from dekk.environment.activation import EnvironmentActivator
 
         result = EnvironmentActivator.from_path(plan.cwd).activate()
         if result.missing_tools:

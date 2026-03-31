@@ -46,7 +46,9 @@ def test_install_wrapper_prefers_local_venv_python(tmp_path: Path) -> None:
     assert install_mock.call_args.kwargs["python"] == venv_python
 
 
-def test_install_wrapper_falls_back_to_path_python(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_install_wrapper_falls_back_to_path_python(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     project_dir = tmp_path / "project"
     project_dir.mkdir()
     spec = _write_spec(project_dir)

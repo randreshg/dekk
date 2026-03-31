@@ -17,8 +17,8 @@ from dekk.diagnostics.diagnostic import (
     DiagnosticReport,
     DiagnosticRunner,
 )
-from dekk.diagnostics.formatters import JsonFormatter, MarkdownFormatter, TextFormatter
 from dekk.diagnostics.diagnostic_checks import CIEnvironmentCheck, DependencyCheck, PlatformCheck
+from dekk.diagnostics.formatters import JsonFormatter, MarkdownFormatter, TextFormatter
 from dekk.diagnostics.remediate import (
     DetectedIssue,
     FixResult,
@@ -277,7 +277,10 @@ def test_platform_check_reports_detected_platform_details():
         is_container=True,
     )
 
-    with patch("dekk.diagnostics.diagnostic_checks.PlatformDetector.detect", return_value=fake_platform):
+    with patch(
+        "dekk.diagnostics.diagnostic_checks.PlatformDetector.detect",
+        return_value=fake_platform,
+    ):
         result = PlatformCheck().run()
 
     assert result.status is CheckStatus.PASS
@@ -288,7 +291,10 @@ def test_platform_check_reports_detected_platform_details():
 
 
 def test_platform_check_reports_detector_failures():
-    with patch("dekk.diagnostics.diagnostic_checks.PlatformDetector.detect", side_effect=RuntimeError("boom")):
+    with patch(
+        "dekk.diagnostics.diagnostic_checks.PlatformDetector.detect",
+        side_effect=RuntimeError("boom"),
+    ):
         result = PlatformCheck().run()
 
     assert result.status is CheckStatus.FAIL
@@ -304,7 +310,10 @@ def test_dependency_check_passes_when_dependency_is_found():
         version="3.12.1",
     )
 
-    with patch("dekk.diagnostics.diagnostic_checks.DependencyChecker.check", return_value=dependency):
+    with patch(
+        "dekk.diagnostics.diagnostic_checks.DependencyChecker.check",
+        return_value=dependency,
+    ):
         result = DependencyCheck(spec).run()
 
     assert result.status is CheckStatus.PASS
@@ -329,10 +338,18 @@ def test_dependency_check_warns_for_old_or_optional_dependencies():
         error="fake not found",
     )
 
-    with patch("dekk.diagnostics.diagnostic_checks.DependencyChecker.check", return_value=old_dependency):
+    with patch(
+        "dekk.diagnostics.diagnostic_checks.DependencyChecker.check",
+        return_value=old_dependency,
+    ):
         old_result = DependencyCheck(old_spec).run()
-    with patch("dekk.diagnostics.diagnostic_checks.DependencyChecker.check", return_value=missing_optional):
-        optional_result = DependencyCheck(DependencySpec("Fake", "fake", required=False)).run()
+    with patch(
+        "dekk.diagnostics.diagnostic_checks.DependencyChecker.check",
+        return_value=missing_optional,
+    ):
+        optional_result = DependencyCheck(
+            DependencySpec("Fake", "fake", required=False)
+        ).run()
 
     assert old_result.status is CheckStatus.WARN
     assert "3.11.9 < required 3.12" in old_result.summary
@@ -349,9 +366,15 @@ def test_dependency_check_fails_for_missing_required_or_checker_errors():
         error="git not found",
     )
 
-    with patch("dekk.diagnostics.diagnostic_checks.DependencyChecker.check", return_value=missing_required):
+    with patch(
+        "dekk.diagnostics.diagnostic_checks.DependencyChecker.check",
+        return_value=missing_required,
+    ):
         missing_result = DependencyCheck(DependencySpec("Git", "git")).run()
-    with patch("dekk.diagnostics.diagnostic_checks.DependencyChecker.check", side_effect=RuntimeError("boom")):
+    with patch(
+        "dekk.diagnostics.diagnostic_checks.DependencyChecker.check",
+        side_effect=RuntimeError("boom"),
+    ):
         error_result = DependencyCheck(DependencySpec("Git", "git")).run()
 
     assert missing_result.status is CheckStatus.FAIL
@@ -392,7 +415,10 @@ def test_ci_environment_check_reports_provider_and_branch():
 
 
 def test_ci_environment_check_reports_detector_failures():
-    with patch("dekk.diagnostics.diagnostic_checks.CIDetector.detect", side_effect=RuntimeError("boom")):
+    with patch(
+        "dekk.diagnostics.diagnostic_checks.CIDetector.detect",
+        side_effect=RuntimeError("boom"),
+    ):
         result = CIEnvironmentCheck().run()
 
     assert result.status is CheckStatus.FAIL

@@ -12,12 +12,12 @@ from dekk.core.commands import (
 )
 from dekk.core.config import ConfigManager, ConfigReconciler, ConfigSource
 from dekk.core.context import (
-    CPUInfo,
     ContextDiff,
     ContextWorkspaceInfo,
+    CPUInfo,
     ExecutionContext,
-    GPUInfo,
     GitInfo,
+    GPUInfo,
     MemoryInfo,
     SystemLibrary,
 )

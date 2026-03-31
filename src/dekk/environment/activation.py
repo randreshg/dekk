@@ -8,11 +8,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from dekk.cli.errors import NotFoundError
+from dekk.diagnostics.validation_cache import get_cache
 from dekk.environment.resolver import resolve_environment
 from dekk.environment.spec import EnvironmentSpec, find_envspec
-from dekk.shell import ActivationScriptBuilder, ShellDetector, ShellKind
 from dekk.execution.toolchain import EnvVarBuilder
-from dekk.diagnostics.validation_cache import get_cache
+from dekk.shell import ActivationScriptBuilder, ShellDetector, ShellKind
 
 _PREPEND_VARS = frozenset({"LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"})
 
@@ -83,7 +83,10 @@ class EnvironmentActivator:
         if resolved and environment_prefix:
             resolved.configure(builder, project_name=self.spec.project_name, tools=self.spec.tools)
 
-        for key, value in self.spec.expand_placeholders(self.project_root, environment_prefix).items():
+        placeholders = self.spec.expand_placeholders(
+            self.project_root, environment_prefix
+        )
+        for key, value in placeholders.items():
             if key.upper() == "PATH":
                 for path in value.split(os.pathsep):
                     builder.prepend_path(path)

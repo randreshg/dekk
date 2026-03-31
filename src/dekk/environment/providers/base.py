@@ -11,9 +11,9 @@ from typing import TYPE_CHECKING
 from dekk.environment.types import EnvironmentKind
 
 if TYPE_CHECKING:
+    from dekk.environment.spec import ToolSpec
     from dekk.execution.os import DekkOS
     from dekk.execution.toolchain import EnvVarBuilder
-    from dekk.environment.spec import ToolSpec
 
 
 @dataclass

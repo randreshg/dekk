@@ -202,10 +202,12 @@ class LibraryPathResolver:
     def configure_builder(self, builder: object) -> None:
         """Apply resolved library paths to an EnvVarBuilder.
 
-        Works with both dekk.execution.env.EnvVarBuilder and dekk.execution.toolchain.EnvVarBuilder.
+        Works with both dekk.execution.env.EnvVarBuilder and
+        dekk.execution.toolchain.EnvVarBuilder.
 
         Args:
-            builder: An EnvVarBuilder instance (from dekk.execution.env or dekk.execution.toolchain).
+            builder: An EnvVarBuilder instance
+                (from dekk.execution.env or dekk.execution.toolchain).
         """
         name, value = self.to_env_var()
         if not value:
