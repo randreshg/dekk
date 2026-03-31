@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,6 +12,10 @@ from dekk.cli.errors import NotFoundError
 from dekk.execution.install import BinaryInstaller, InstallResult
 from dekk.shell import ShellInfo, ShellKind
 
+_skip_on_windows = pytest.mark.skipif(
+    sys.platform == "win32", reason="Unix-specific paths/shell"
+)
+
 
 def _write_spec(project_dir: Path) -> Path:
     spec = project_dir / ".dekk.toml"
@@ -18,6 +23,7 @@ def _write_spec(project_dir: Path) -> Path:
     return spec
 
 
+@_skip_on_windows
 def test_install_wrapper_prefers_local_venv_python(tmp_path: Path) -> None:
     project_dir = tmp_path / "project"
     project_dir.mkdir()
@@ -96,6 +102,7 @@ def test_install_wrapper_requires_python_for_python_scripts(
         )
 
 
+@_skip_on_windows
 def test_install_binary_uses_powershell_profile_candidates(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -129,6 +136,7 @@ def test_install_binary_uses_powershell_profile_candidates(
     assert str((tmp_path / "bin").resolve()) in profile.read_text(encoding="utf-8")
 
 
+@_skip_on_windows
 def test_uninstall_wrapper_can_remove_shell_config_entry(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

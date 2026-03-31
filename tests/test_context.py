@@ -288,10 +288,10 @@ def test_serialize_value_handles_nested_paths_dataclasses_and_datetimes():
 
     result = _serialize_value(payload)
 
-    assert result["root"] == "/tmp/project"
+    assert result["root"] == str(Path("/tmp/project"))
     assert result["timestamp"].startswith("2026-01-01")
     assert result["cpu"]["model"] == "Intel"
-    assert result["items"] == ["/a", "/b"]
+    assert result["items"] == [str(Path("/a")), str(Path("/b"))]
 
 
 def _make_context(**overrides) -> ExecutionContext:

@@ -123,8 +123,8 @@ class TestEnvVarBuilder:
         snap = EnvVarBuilder().set_from_path("LIB", [Path("/opt/lib"), Path("/usr/lib")]).build()
         value = snap.get("LIB")
         assert value is not None
-        assert "/opt/lib" in value
-        assert "/usr/lib" in value
+        assert str(Path("/opt/lib")) in value
+        assert str(Path("/usr/lib")) in value
 
     def test_unset(self):
         snap = EnvVarBuilder().set("CC", "gcc").set("CXX", "g++").unset("CC").build()
@@ -294,6 +294,8 @@ class TestEnvLibpathIntegration:
 
     def test_libpath_to_env_var_into_builder(self):
         """LibraryPathResolver.to_env_var() integrates with env.EnvVarBuilder."""
+        from pathlib import Path
+
         from dekk.detection.libpath import LibraryPathResolver
 
         resolver = LibraryPathResolver.for_platform("Linux")
@@ -304,10 +306,12 @@ class TestEnvLibpathIntegration:
 
         result = EnvVarBuilder().set(name, value).build()
         assert result.get("LD_LIBRARY_PATH") is not None
-        assert "/opt/lib" in result.get("LD_LIBRARY_PATH", "")
+        assert str(Path("/opt/lib")) in result.get("LD_LIBRARY_PATH", "")
 
     def test_env_snapshot_capture_includes_lib_path(self):
         """After libpath.apply(), the captured snapshot has the var."""
+        from pathlib import Path
+
         from dekk.detection.libpath import LibraryPathResolver
 
         resolver = LibraryPathResolver.for_platform("Linux")
@@ -318,4 +322,4 @@ class TestEnvLibpathIntegration:
             snap = EnvSnapshot.capture()
 
         assert snap.get("LD_LIBRARY_PATH") is not None
-        assert "/snapshot/test/lib" in snap.get("LD_LIBRARY_PATH", "")
+        assert str(Path("/snapshot/test/lib")) in snap.get("LD_LIBRARY_PATH", "")

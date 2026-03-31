@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from unittest.mock import patch
 
@@ -58,7 +59,7 @@ class TestEnvVarBuilder:
         builder.prepend_path("/opt/conda/bin")
         builder.prepend_path(Path("/usr/local/bin"))
         config = builder.build()
-        assert config.path_prepends == ("/opt/conda/bin", "/usr/local/bin")
+        assert config.path_prepends == ("/opt/conda/bin", str(Path("/usr/local/bin")))
 
     def test_set_banner(self):
         builder = EnvVarBuilder()
@@ -134,6 +135,7 @@ class TestCMakeToolchain:
         with pytest.raises(AttributeError):
             self.tc.prefix = Path("/other")  # type: ignore[misc]
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Tests Unix conda layout")
     def test_properties(self):
         assert self.tc.mlir_dir == self.prefix / "lib" / "cmake" / "mlir"
         assert self.tc.llvm_dir == self.prefix / "lib" / "cmake" / "llvm"

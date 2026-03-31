@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import os
+import sys
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -510,6 +512,7 @@ class TestValidationPipeline:
 class TestValidateToolchainIntegration:
     """Tests combining validate + toolchain modules."""
 
+    @pytest.mark.skipif(sys.platform == "win32", reason="Tests Unix conda layout")
     def test_validate_cmake_directories(self, tmp_path):
         """Validate that CMakeToolchain paths exist using EnvironmentValidator."""
         from dekk.execution.toolchain import CMakeToolchain
@@ -614,4 +617,4 @@ class TestValidateLibpathIntegration:
             result = v.check_env_var("LD_LIBRARY_PATH")
 
         assert result.status is CheckStatus.PASSED
-        assert "/opt/test/lib" in result.details.get("value", "")
+        assert str(Path("/opt/test/lib")) in result.details.get("value", "")

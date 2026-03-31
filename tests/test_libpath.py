@@ -3,12 +3,23 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
 from dekk.detection.detect import PlatformInfo
 from dekk.detection.libpath import LibraryPathInfo, LibraryPathResolver
+
+
+def _p(*parts: str) -> str:
+    """Normalize a Unix-style path string for the current platform.
+
+    On Unix this is a no-op; on Windows ``Path("/opt/lib")`` becomes
+    ``\\opt\\lib``, which matches how the production code normalises via
+    ``str(Path(...))``.
+    """
+    return str(Path(*parts))
 
 # ---------------------------------------------------------------------------
 # LibraryPathResolver construction
@@ -60,55 +71,55 @@ class TestPrependAppend:
     def test_prepend_single(self):
         self.resolver.prepend("/opt/lib")
         info = self.resolver.resolve()
-        assert "/opt/lib" in info.paths
+        assert _p("/opt/lib") in info.paths
 
     def test_prepend_multiple(self):
         self.resolver.prepend("/opt/lib", "/usr/local/lib")
         info = self.resolver.resolve()
-        assert info.paths[0] == "/opt/lib"
-        assert info.paths[1] == "/usr/local/lib"
+        assert info.paths[0] == _p("/opt/lib")
+        assert info.paths[1] == _p("/usr/local/lib")
 
     def test_append_single(self):
         self.resolver.append("/fallback/lib")
         info = self.resolver.resolve()
-        assert "/fallback/lib" in info.paths
+        assert _p("/fallback/lib") in info.paths
 
     def test_prepend_before_append(self):
         self.resolver.prepend("/first")
         self.resolver.append("/last")
         info = self.resolver.resolve()
-        first_idx = info.paths.index("/first")
-        last_idx = info.paths.index("/last")
+        first_idx = info.paths.index(_p("/first"))
+        last_idx = info.paths.index(_p("/last"))
         assert first_idx < last_idx
 
     def test_chaining(self):
         info = self.resolver.prepend("/opt/lib").append("/fallback/lib").resolve()
-        assert "/opt/lib" in info.paths
-        assert "/fallback/lib" in info.paths
+        assert _p("/opt/lib") in info.paths
+        assert _p("/fallback/lib") in info.paths
 
     def test_deduplication_across_prepend(self):
         self.resolver.prepend("/opt/lib")
         self.resolver.prepend("/opt/lib")
         info = self.resolver.resolve()
-        assert info.paths.count("/opt/lib") == 1
+        assert info.paths.count(_p("/opt/lib")) == 1
 
     def test_deduplication_across_append(self):
         self.resolver.append("/opt/lib")
         self.resolver.append("/opt/lib")
         info = self.resolver.resolve()
-        assert info.paths.count("/opt/lib") == 1
+        assert info.paths.count(_p("/opt/lib")) == 1
 
     def test_deduplication_prepend_vs_append(self):
         self.resolver.prepend("/opt/lib")
         self.resolver.append("/opt/lib")  # Should be skipped
         info = self.resolver.resolve()
-        assert info.paths.count("/opt/lib") == 1
+        assert info.paths.count(_p("/opt/lib")) == 1
 
     def test_deduplication_append_vs_prepend(self):
         self.resolver.append("/opt/lib")
         self.resolver.prepend("/opt/lib")  # Should be skipped
         info = self.resolver.resolve()
-        assert info.paths.count("/opt/lib") == 1
+        assert info.paths.count(_p("/opt/lib")) == 1
 
 
 # ---------------------------------------------------------------------------
@@ -124,8 +135,8 @@ class TestResolveWithEnv:
         with patch.dict(os.environ, {"LD_LIBRARY_PATH": "/existing/lib"}):
             info = resolver.resolve()
 
-        assert info.paths[0] == "/new/lib"
-        assert "/existing/lib" in info.paths
+        assert info.paths[0] == _p("/new/lib")
+        assert _p("/existing/lib") in info.paths
 
     def test_existing_between_prepend_and_append(self):
         resolver = LibraryPathResolver.for_platform("Linux")
@@ -135,7 +146,7 @@ class TestResolveWithEnv:
         with patch.dict(os.environ, {"LD_LIBRARY_PATH": "/middle"}):
             info = resolver.resolve()
 
-        assert info.paths == ("/first", "/middle", "/last")
+        assert info.paths == (_p("/first"), _p("/middle"), _p("/last"))
 
     def test_deduplicates_against_existing(self):
         resolver = LibraryPathResolver.for_platform("Linux")
@@ -145,8 +156,8 @@ class TestResolveWithEnv:
             info = resolver.resolve()
 
         # /existing/lib should appear only once (from prepend, which takes priority)
-        assert info.paths.count("/existing/lib") == 1
-        assert info.paths[0] == "/existing/lib"  # prepend position wins
+        assert info.paths.count(_p("/existing/lib")) == 1
+        assert info.paths[0] == _p("/existing/lib")  # prepend position wins
 
     def test_empty_env(self):
         resolver = LibraryPathResolver.for_platform("Linux")
@@ -155,7 +166,7 @@ class TestResolveWithEnv:
         with patch.dict(os.environ, {}, clear=True):
             info = resolver.resolve()
 
-        assert info.paths == ("/opt/lib",)
+        assert info.paths == (_p("/opt/lib"),)
 
     def test_empty_everything(self):
         resolver = LibraryPathResolver.for_platform("Linux")
@@ -173,8 +184,8 @@ class TestResolveWithEnv:
             info = resolver.resolve()
 
         assert info.env_var == "DYLD_LIBRARY_PATH"
-        assert "/opt/lib" in info.paths
-        assert "/existing" in info.paths
+        assert _p("/opt/lib") in info.paths
+        assert _p("/existing") in info.paths
 
 
 # ---------------------------------------------------------------------------
@@ -239,7 +250,7 @@ class TestApply:
 
         with patch.dict(os.environ, {}, clear=True):
             info = resolver.apply()
-            assert os.environ["LD_LIBRARY_PATH"] == "/opt/lib"
+            assert os.environ["LD_LIBRARY_PATH"] == _p("/opt/lib")
             assert info.env_var == "LD_LIBRARY_PATH"
 
     def test_apply_preserves_existing(self):
@@ -248,7 +259,7 @@ class TestApply:
 
         with patch.dict(os.environ, {"LD_LIBRARY_PATH": "/existing/lib"}):
             resolver.apply()
-            assert os.environ["LD_LIBRARY_PATH"] == "/new/lib:/existing/lib"
+            assert os.environ["LD_LIBRARY_PATH"] == _p("/new/lib") + ":" + _p("/existing/lib")
 
     def test_apply_empty_does_not_set(self):
         resolver = LibraryPathResolver.for_platform("Linux")
@@ -272,7 +283,7 @@ class TestToEnvVar:
             name, value = resolver.to_env_var()
 
         assert name == "LD_LIBRARY_PATH"
-        assert value == "/opt/lib"
+        assert value == _p("/opt/lib")
 
     def test_to_env_var_macos(self):
         resolver = LibraryPathResolver.for_platform("Darwin")
@@ -282,7 +293,7 @@ class TestToEnvVar:
             name, value = resolver.to_env_var()
 
         assert name == "DYLD_LIBRARY_PATH"
-        assert value == "/opt/lib"
+        assert value == _p("/opt/lib")
 
     def test_works_with_env_var_dataclass(self):
         """Verify the tuple integrates with dekk.shell.EnvVar."""
@@ -296,7 +307,7 @@ class TestToEnvVar:
 
         env = EnvVar(name=name, value=value, prepend_path=True)
         assert env.name == "LD_LIBRARY_PATH"
-        assert env.value == "/opt/lib"
+        assert env.value == _p("/opt/lib")
 
 
 # ---------------------------------------------------------------------------
@@ -320,9 +331,9 @@ class TestApxmIntegration:
             info = resolver.resolve()
 
         assert info.env_var == "LD_LIBRARY_PATH"
-        assert f"{prefix}/lib" in info.paths
-        assert f"{prefix}/lib/cmake/mlir" in info.paths
-        assert info.paths[0] == f"{prefix}/lib"
+        assert _p(f"{prefix}/lib") in info.paths
+        assert _p(f"{prefix}/lib/cmake/mlir") in info.paths
+        assert info.paths[0] == _p(f"{prefix}/lib")
 
     def test_apxm_macos_cross_platform(self):
         """Same setup but targeting macOS."""
@@ -334,7 +345,7 @@ class TestApxmIntegration:
             info = resolver.resolve()
 
         assert info.env_var == "DYLD_LIBRARY_PATH"
-        assert f"{prefix}/lib" in info.paths
+        assert _p(f"{prefix}/lib") in info.paths
 
     def test_linux_current_platform(self):
         """Verify for_current_platform matches the actual runtime platform."""
@@ -371,8 +382,8 @@ class TestConfigureBuilder:
         snap = builder.build()
         value = snap.get("LD_LIBRARY_PATH")
         assert value is not None
-        assert "/opt/lib" in value
-        assert "/usr/local/lib" in value
+        assert _p("/opt/lib") in value
+        assert _p("/usr/local/lib") in value
 
     def test_configure_toolchain_builder(self):
         """configure_builder with dekk.execution.toolchain.EnvVarBuilder (has prepend_var)."""
@@ -438,8 +449,6 @@ class TestLibpathToolchainIntegration:
 
     def test_libpath_then_cmake_toolchain(self):
         """LibraryPathResolver and CMakeToolchain can both contribute to the same builder."""
-        from pathlib import Path as P
-
         from dekk.execution.toolchain import CMakeToolchain
         from dekk.execution.toolchain import EnvVarBuilder as TcBuilder
 
@@ -456,12 +465,12 @@ class TestLibpathToolchainIntegration:
             from unittest.mock import patch as mpatch
 
             with mpatch("dekk.execution.os.posix.platform.system", return_value="Linux"):
-                cmake = CMakeToolchain(prefix=P(prefix))
+                cmake = CMakeToolchain(prefix=Path(prefix))
                 cmake.configure(builder)
 
         config = builder.build()
         ld_vars = [v for v in config.env_vars if v.name == "LD_LIBRARY_PATH"]
         # Both the resolver's path and cmake's prefix/lib should be present
         ld_values = [v.value for v in ld_vars]
-        assert "/custom/runtime/lib" in ld_values
-        assert f"{prefix}/lib" in ld_values
+        assert _p("/custom/runtime/lib") in ld_values
+        assert _p(prefix, "lib") in ld_values

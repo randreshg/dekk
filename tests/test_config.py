@@ -420,8 +420,14 @@ class TestConfigReconcilerIntegration:
         assert rec.keys() == ["a", "b", "m", "z"]
 
     def test_file_path_as_absolute(self):
+        import sys
+
         rec = ConfigReconciler()
-        path = Path("/home/user/.config/app/config.toml")
+        path = (
+            Path("C:/home/user/.config/app/config.toml")
+            if sys.platform == "win32"
+            else Path("/home/user/.config/app/config.toml")
+        )
         rec.add_source(ConfigSource("k", "v", "file", path, 100, 1))
         result = rec.resolve("k")
         assert result.file_path == path
