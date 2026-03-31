@@ -248,7 +248,7 @@ class CIDetector:
                 commit_sha=sha,
                 commit_short=sha[:7] if sha else None,
                 tag=tag,
-                default_branch=env.get("GITHUB_EVENT_NAME") == "push" and branch or None,
+                default_branch=env.get("GITHUB_BASE_REF") or None,
             ),
             pull_request=CIPullRequest(
                 number=pr_number,

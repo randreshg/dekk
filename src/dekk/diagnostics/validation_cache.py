@@ -5,7 +5,9 @@ Performance: <5ms cache hit, <100ms cache miss
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
@@ -36,10 +38,16 @@ class ValidationCache:
     def _cache_file(self, project_path: Path, environment_key: str) -> Path:
         """Get cache file path with readable name.
 
+        Uses a hash of the full resolved project path to avoid collisions
+        between projects with the same directory name (e.g. /a/proj vs /b/proj).
         The environment key should uniquely identify the configured environment,
         e.g. the resolved environment prefix path.
         """
-        safe_name = f"{project_path.name}_{environment_key}".replace("/", "_")
+        path_hash = hashlib.sha256(
+            str(project_path.resolve()).encode()
+        ).hexdigest()[:12]
+        safe_name = f"{project_path.name}_{path_hash}_{environment_key}"
+        safe_name = re.sub(r'[/\\:?*<>"]', "_", safe_name)
         return self.cache_dir / f"{safe_name}.json"
 
     def get(self, project_path: Path, environment_key: str) -> CachedValidation | None:
@@ -84,10 +92,14 @@ class ValidationCache:
             pass  # Non-critical
 
 
-# Module-level singleton
-_cache = ValidationCache()
+# Lazy module-level singleton — instantiated on first call to get_cache()
+# to avoid side-effects (directory creation) at import time.
+_cache: ValidationCache | None = None
 
 
 def get_cache() -> ValidationCache:
-    """Get validation cache instance."""
+    """Get validation cache instance (created on first call)."""
+    global _cache  # noqa: PLW0603
+    if _cache is None:
+        _cache = ValidationCache()
     return _cache

@@ -14,6 +14,15 @@ from dekk.shell import ActivationScriptBuilder, ShellDetector, ShellKind
 from dekk.execution.toolchain import EnvVarBuilder
 from dekk.diagnostics.validation_cache import get_cache
 
+_PREPEND_VARS = frozenset({"LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"})
+
+
+def _resolve_shell_kind(shell: str | ShellKind) -> ShellKind:
+    """Resolve a shell override to a ``ShellKind``."""
+    if isinstance(shell, ShellKind):
+        return shell
+    return ShellDetector().detect(shell_override=shell).kind
+
 
 @dataclass
 class ActivationResult:
@@ -39,9 +48,30 @@ class EnvironmentActivator:
         cache_key = str(resolved.prefix) if resolved else "no-environment"
         if use_cache and resolved:
             if cached := get_cache().get(self.project_root, cache_key):
+                activation_script = None
+                if shell:
+                    shell_kind = _resolve_shell_kind(shell)
+                    # Rebuild an ActivationConfig from cached env vars so the
+                    # activation script can be regenerated for the requested shell.
+                    script_builder = EnvVarBuilder()
+                    for k, v in cached.env_vars.items():
+                        if k == "PATH":
+                            for p in v.split(os.pathsep):
+                                if p:
+                                    script_builder.prepend_path(p)
+                        elif k.upper() in _PREPEND_VARS:
+                            for p in v.split(os.pathsep):
+                                if p:
+                                    script_builder.prepend_var(k, p)
+                        else:
+                            script_builder.set_var(k, v)
+                    activation_script = ActivationScriptBuilder().build(
+                        script_builder.build(), shell_kind
+                    )
                 return ActivationResult(
                     env_vars=cached.env_vars,
                     missing_tools=cached.missing_tools,
+                    activation_script=activation_script,
                 )
 
         environment_prefix = None
@@ -54,10 +84,10 @@ class EnvironmentActivator:
             resolved.configure(builder, project_name=self.spec.project_name, tools=self.spec.tools)
 
         for key, value in self.spec.expand_placeholders(self.project_root, environment_prefix).items():
-            if key.upper() in ("PATH", "BIN"):
+            if key.upper() == "PATH":
                 for path in value.split(os.pathsep):
                     builder.prepend_path(path)
-            elif key.upper() in ("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"):
+            elif key.upper() in _PREPEND_VARS:
                 for path in value.split(os.pathsep):
                     builder.prepend_var(key, path)
             else:
@@ -79,12 +109,9 @@ class EnvironmentActivator:
 
         activation_script = None
         if shell:
-            shell_kind = (
-                shell
-                if isinstance(shell, ShellKind)
-                else ShellDetector().detect(shell_override=shell).kind
+            activation_script = ActivationScriptBuilder().build(
+                builder.build(), _resolve_shell_kind(shell)
             )
-            activation_script = ActivationScriptBuilder().build(builder.build(), shell_kind)
 
         if use_cache and resolved:
             get_cache().set(

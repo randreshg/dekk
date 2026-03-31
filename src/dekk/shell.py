@@ -377,9 +377,15 @@ class ActivationScriptBuilder:
         label = config.app_name or "environment"
         lines.append(f"# Activation script for {label}")
 
-        # Save old values for deactivation
+        # Save old values for deactivation (track whether var was set at all)
         for var in config.env_vars:
-            lines.append(f'_OLD_{var.name}="${{{var.name}:-}}"')
+            lines.append(f'if [ "${{{var.name}+set}}" = "set" ]; then')
+            lines.append(f'  _OLD_{var.name}="${var.name}"')
+            lines.append(f'  _OLD_{var.name}_SET=1')
+            lines.append("else")
+            lines.append(f"  unset _OLD_{var.name}")
+            lines.append(f"  _OLD_{var.name}_SET=0")
+            lines.append("fi")
         if config.path_prepends:
             lines.append('_OLD_PATH="${PATH:-}"')
 
@@ -406,12 +412,13 @@ class ActivationScriptBuilder:
         lines.append(f"# Deactivation script for {label}")
 
         for var in config.env_vars:
-            lines.append(f'if [ -n "$_OLD_{var.name}" ]; then')
+            lines.append(f'if [ "$_OLD_{var.name}_SET" = "1" ]; then')
             lines.append(f'  export {var.name}="$_OLD_{var.name}"')
             lines.append("else")
             lines.append(f"  unset {var.name}")
             lines.append("fi")
             lines.append(f"unset _OLD_{var.name}")
+            lines.append(f"unset _OLD_{var.name}_SET")
 
         if config.path_prepends:
             lines.append('if [ -n "$_OLD_PATH" ]; then')
@@ -479,6 +486,17 @@ class ActivationScriptBuilder:
         label = config.app_name or "environment"
         lines.append(f"# Activation script for {label}")
 
+        # Save old values for deactivation (track whether var was set at all)
+        for var in config.env_vars:
+            lines.append(f"if ($?{var.name}) then")
+            lines.append(f'    setenv _OLD_{var.name} "${var.name}"')
+            lines.append(f"    setenv _OLD_{var.name}_SET 1")
+            lines.append("else")
+            lines.append(f"    setenv _OLD_{var.name}_SET 0")
+            lines.append("endif")
+        if config.path_prepends:
+            lines.append('setenv _OLD_PATH "$PATH"')
+
         # Set env vars
         for var in config.env_vars:
             if var.prepend_path:
@@ -500,10 +518,21 @@ class ActivationScriptBuilder:
         lines: list[str] = []
         label = config.app_name or "environment"
         lines.append(f"# Deactivation script for {label}")
-        lines.append("# tcsh: re-source your .tcshrc to restore environment")
 
         for var in config.env_vars:
-            lines.append(f"unsetenv {var.name}")
+            lines.append(f'if ("$_OLD_{var.name}_SET" == "1") then')
+            lines.append(f'    setenv {var.name} "$_OLD_{var.name}"')
+            lines.append("else")
+            lines.append(f"    unsetenv {var.name}")
+            lines.append("endif")
+            lines.append(f"if ($?_OLD_{var.name}) unsetenv _OLD_{var.name}")
+            lines.append(f"unsetenv _OLD_{var.name}_SET")
+
+        if config.path_prepends:
+            lines.append('if ($?_OLD_PATH) then')
+            lines.append('    setenv PATH "$_OLD_PATH"')
+            lines.append("    unsetenv _OLD_PATH")
+            lines.append("endif")
 
         return "\n".join(lines) + "\n"
 
@@ -610,7 +639,7 @@ class ActivationScriptBuilder:
 
                     f"if defined _OLD_{var.name} "
                     f'(set "{var.name}=%_OLD_{var.name}%") '
-                    f'else set "{var.name}="'
+                    f'else (set "{var.name}=")'
 
             )
             lines.append(f'set "_OLD_{var.name}="')
@@ -1079,7 +1108,10 @@ class AliasSuggestor:
             elif shell == ShellKind.TCSH:
                 lines.append(f"alias {s.alias} '{s.command}'")
             elif shell in (ShellKind.POWERSHELL, ShellKind.PWSH):
-                lines.append(f"Set-Alias -Name {s.alias} -Value {{ {s.command} }}")
+                if " " in s.command:
+                    lines.append(f"function {s.alias} {{ {s.command} @args }}")
+                else:
+                    lines.append(f"Set-Alias -Name {s.alias} -Value {s.command}")
 
         lines.append("")
         return "\n".join(lines)

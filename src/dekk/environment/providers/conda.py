@@ -7,7 +7,10 @@ import subprocess
 import os
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Final
+from typing import TYPE_CHECKING, Final
+
+if TYPE_CHECKING:
+    from dekk.environment.spec import ToolSpec
 
 from dekk.environment.providers.base import DekkEnv, DekkEnvSetupResult
 from dekk.environment.types import EnvironmentKind
@@ -15,6 +18,11 @@ from dekk.execution.os import DekkOS, get_dekk_os
 from dekk.execution.toolchain import CMakeToolchain, CondaToolchain, EnvVarBuilder
 
 CONDA_FORGE_CHANNEL: Final = "conda-forge"
+_PASSTHROUGH_ENV_VARS: Final = (
+    "HTTPS_PROXY", "HTTP_PROXY", "NO_PROXY",
+    "SSL_CERT_FILE", "NODE_EXTRA_CA_CERTS",
+    "NPM_CONFIG_REGISTRY", "USERPROFILE",
+)
 CONDA_COMMANDS: Final = ("mamba", "conda")
 CONDA_METADATA_DIRNAME: Final = "conda-meta"
 PATH_ENV_NAME: Final = "PATH"
@@ -39,7 +47,7 @@ class CondaEnv(DekkEnv):
         builder: EnvVarBuilder,
         *,
         project_name: str,
-        tools,
+        tools: Mapping[str, ToolSpec],
     ) -> None:
         CondaToolchain(self.prefix, project_name).configure(builder)
         if any(tool_name.lower() == CMAKE_TOOL_NAME for tool_name in tools):
@@ -65,8 +73,8 @@ class CondaEnv(DekkEnv):
                 cmd = [conda_cmd, "env", "update", "-p", str(self.prefix), "-f", str(env_file_path)]
             else:
                 cmd = [conda_cmd, "env", "create", "-p", str(self.prefix), "-f", str(env_file_path)]
-            if force:
-                cmd.append("--force")
+                if force:
+                    cmd.append("--force")
         else:
             cmd = [conda_cmd, "create", "-p", str(self.prefix), "-c", CONDA_FORGE_CHANNEL, "-y"]
 
@@ -77,6 +85,7 @@ class CondaEnv(DekkEnv):
                 text=True,
                 timeout=600,
                 check=False,
+                cwd=project_root,
             )
             if result.returncode != 0:
                 stderr = result.stderr.strip()
@@ -87,7 +96,7 @@ class CondaEnv(DekkEnv):
         except OSError as exc:
             return DekkEnvSetupResult(errors=[f"Failed to run {conda_cmd}: {exc}"])
 
-        return DekkEnvSetupResult(prefix=self.prefix if self.exists() else None, created=True, errors=errors)
+        return DekkEnvSetupResult(prefix=self.prefix if self.exists() else None, created=not existing, errors=errors)
 
     def install_npm_packages(self, packages: Mapping[str, str]) -> tuple[list[str], list[str]]:
         """Install npm packages globally into this runtime environment."""
@@ -107,6 +116,10 @@ class CondaEnv(DekkEnv):
             ),
             HOME_ENV_NAME: str(Path.home()),
         }
+        for var in _PASSTHROUGH_ENV_VARS:
+            value = os.environ.get(var)
+            if value is not None:
+                env[var] = value
         installed: list[str] = []
         errors: list[str] = []
 

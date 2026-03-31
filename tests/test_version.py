@@ -96,6 +96,18 @@ class TestVersionComparison:
     def test_numeric_pre_release(self):
         assert Version(1, 0, 0, pre="1") < Version(1, 0, 0, pre="2")
 
+    def test_mixed_pre_release_numeric_vs_string(self):
+        # Numeric segments sort before string segments (per semver spec)
+        assert Version(1, 0, 0, pre="1") < Version(1, 0, 0, pre="alpha")
+
+    def test_mixed_pre_release_no_type_error(self):
+        # Must not raise TypeError when comparing int vs str pre-release segments
+        v1 = Version.parse("1.0.0-1")
+        v2 = Version.parse("1.0.0-alpha")
+        assert v1 < v2
+        assert v2 > v1
+        assert v1 != v2
+
     def test_gte(self):
         assert Version(1, 80, 0) >= Version(1, 80, 0)
         assert Version(1, 81, 0) >= Version(1, 80, 0)
@@ -185,7 +197,7 @@ class TestVersionConstraint:
 
     def test_compat_two_part(self):
         # ~=3.11 -> >=3.11.0, <4.0.0
-        c = VersionConstraint(ConstraintOp.COMPAT, Version(3, 11, 0))
+        c = VersionConstraint(ConstraintOp.COMPAT, Version.parse("3.11"))
         assert c.satisfied_by(Version(3, 11, 0))
         assert c.satisfied_by(Version(3, 12, 0))
         assert c.satisfied_by(Version(3, 99, 0))
@@ -198,6 +210,14 @@ class TestVersionConstraint:
         assert c.satisfied_by(Version(1, 2, 3))
         assert c.satisfied_by(Version(1, 2, 9))
         assert not c.satisfied_by(Version(1, 3, 0))
+
+    def test_compat_three_part_patch_zero(self):
+        # ~=3.11.0 -> >=3.11.0, <3.12.0  (NOT <4.0.0)
+        c = VersionConstraint(ConstraintOp.COMPAT, Version.parse("3.11.0"))
+        assert c.satisfied_by(Version(3, 11, 0))
+        assert c.satisfied_by(Version(3, 11, 5))
+        assert not c.satisfied_by(Version(3, 12, 0))
+        assert not c.satisfied_by(Version(4, 0, 0))
 
     def test_tilde(self):
         # ~1.2.3 -> >=1.2.3, <1.3.0
@@ -249,6 +269,14 @@ class TestVersionSpec:
         assert spec.satisfied_by("3.12.5")
         assert not spec.satisfied_by("4.0.0")
         assert not spec.satisfied_by("3.10.0")
+
+    def test_parse_compat_three_part_patch_zero(self):
+        # ~=3.11.0 means >=3.11.0, <3.12.0 -- NOT <4.0.0
+        spec = VersionSpec.parse("~=3.11.0")
+        assert spec.satisfied_by("3.11.0")
+        assert spec.satisfied_by("3.11.5")
+        assert not spec.satisfied_by("3.12.0")
+        assert not spec.satisfied_by("4.0.0")
 
     def test_parse_caret(self):
         spec = VersionSpec.parse("^2.0.0")

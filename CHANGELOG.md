@@ -2,6 +2,28 @@
 
 All notable changes to `dekk` will be documented in this file.
 
+## 1.3.0 - 2026-03-31
+
+- Refactored environment, agents, and path infrastructure into sub-packages
+  (`dekk.environment`, `dekk.execution`, `dekk.detection`, `dekk.diagnostics`).
+- Added `dekk setup`: automated conda env creation and npm package provisioning
+  via new `[conda.packages]` and `[npm]` sections in `.dekk.toml`.
+- Added `dekk agents flow <template>` command for acpx flow template generation
+  (review, triage, echo starters customized with project skills).
+- Added worktree-safe project command routing with `dekk.project.runner`.
+- Documented worktree-safe project command routing in guides and architecture docs.
+
+## 1.2.0 - 2026-03-30
+
+- Added `dekk agents` module: single source-of-truth agent config generation.
+- `create_agents_app()` factory for init/generate/install/status/list commands.
+- Skill and rule discovery with YAML frontmatter parsing.
+- Per-target generators for Claude Code, Codex, Cursor, and Copilot.
+- Codex skill installation to `~/.codex/skills/`.
+- Smart scaffolding from Typer introspection and `.dekk.toml` commands.
+- `agent_skill=True` decorator support for command-to-skill conversion.
+- Added `CommandSpec` and `AgentsSpec` dataclasses for `.dekk.toml`.
+
 ## 1.1.0 - 2026-03-20
 
 - Export `Context` from `dekk.typer_app` so consumers can use `from dekk import Context`

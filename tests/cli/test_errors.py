@@ -9,12 +9,12 @@ import pytest
 from dekk.cli.errors import (
     ConfigError,
     DekkError,
+    DekkPermissionError,
+    DekkRuntimeError,
+    DekkTimeoutError,
     DependencyError,
     ExitCodes,
     NotFoundError,
-    PermissionError,
-    RuntimeError,
-    TimeoutError,
     ValidationError,
 )
 
@@ -146,9 +146,9 @@ class TestSubclassExitCodes:
             (ValidationError, ExitCodes.VALIDATION_ERROR),
             (ConfigError, ExitCodes.CONFIG_ERROR),
             (DependencyError, ExitCodes.DEPENDENCY_ERROR),
-            (TimeoutError, ExitCodes.TIMEOUT),
-            (PermissionError, ExitCodes.PERMISSION_ERROR),
-            (RuntimeError, ExitCodes.RUNTIME_ERROR),
+            (DekkTimeoutError, ExitCodes.TIMEOUT),
+            (DekkPermissionError, ExitCodes.PERMISSION_ERROR),
+            (DekkRuntimeError, ExitCodes.RUNTIME_ERROR),
         ],
     )
     def test_exit_code(self, cls, expected_code):
@@ -162,9 +162,9 @@ class TestSubclassExitCodes:
             (ValidationError, 2),
             (ConfigError, 6),
             (DependencyError, 7),
-            (TimeoutError, 5),
-            (PermissionError, 4),
-            (RuntimeError, 8),
+            (DekkTimeoutError, 5),
+            (DekkPermissionError, 4),
+            (DekkRuntimeError, 8),
         ],
     )
     def test_exit_code_int_value(self, cls, expected_int):
@@ -187,9 +187,9 @@ class TestSubclassInheritance:
             ValidationError,
             ConfigError,
             DependencyError,
-            TimeoutError,
-            PermissionError,
-            RuntimeError,
+            DekkTimeoutError,
+            DekkPermissionError,
+            DekkRuntimeError,
         ],
     )
     def test_is_dekk_error(self, cls):
@@ -202,9 +202,9 @@ class TestSubclassInheritance:
             ValidationError,
             ConfigError,
             DependencyError,
-            TimeoutError,
-            PermissionError,
-            RuntimeError,
+            DekkTimeoutError,
+            DekkPermissionError,
+            DekkRuntimeError,
         ],
     )
     def test_catchable_as_dekk_error(self, cls):
@@ -249,21 +249,21 @@ class TestSubclassToDict:
         assert d["package"] == "tomli"
 
     def test_timeout_to_dict(self):
-        err = TimeoutError("Request timed out", timeout_seconds=30)
+        err = DekkTimeoutError("Request timed out", timeout_seconds=30)
         d = err.to_dict()
-        assert d["error"] == "TimeoutError"
+        assert d["error"] == "DekkTimeoutError"
         assert d["timeout_seconds"] == 30
 
     def test_permission_to_dict(self):
-        err = PermissionError("Cannot write", path="/etc/config")
+        err = DekkPermissionError("Cannot write", path="/etc/config")
         d = err.to_dict()
-        assert d["error"] == "PermissionError"
+        assert d["error"] == "DekkPermissionError"
         assert d["path"] == "/etc/config"
 
     def test_runtime_to_dict(self):
-        err = RuntimeError("Subprocess failed", returncode=127)
+        err = DekkRuntimeError("Subprocess failed", returncode=127)
         d = err.to_dict()
-        assert d["error"] == "RuntimeError"
+        assert d["error"] == "DekkRuntimeError"
         assert d["returncode"] == 127
 
 
@@ -297,12 +297,8 @@ class TestEdgeCases:
         # so the detail value wins.
         assert d["error"] == "CustomName"
 
-    def test_shadowing_builtin_names(self):
-        """PermissionError and RuntimeError shadow builtins but work correctly."""
-        # Our PermissionError should be DekkError, not builtins.PermissionError
-        err = PermissionError("denied")
+    def test_no_longer_shadows_builtins(self):
+        """DekkPermissionError does not shadow builtins.PermissionError."""
+        err = DekkPermissionError("denied")
         assert isinstance(err, DekkError)
-        assert not isinstance(err, builtins_PermissionError)
-
-
-builtins_PermissionError = builtins.PermissionError
+        assert not isinstance(err, builtins.PermissionError)

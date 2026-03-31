@@ -13,85 +13,82 @@ import pytest
 from dekk.environment.activation import ActivationResult
 from dekk.execution.os import WindowsDekkOS
 from dekk.execution.install import InstallResult
+from dekk.execution.os.shared import cmd_escape, sh_escape_double, sh_quote
 from dekk.execution.wrapper import (
     WrapperGenerator,
-    _cmd_escape_value,
     _dir_in_path,
-    _generate_cmd_script,
-    _sh_escape_double,
-    _sh_quote,
 )
 
 # ---------------------------------------------------------------------------
-# _sh_quote
+# sh_quote
 # ---------------------------------------------------------------------------
 
 
 class TestShQuote:
     def test_empty_string(self):
-        assert _sh_quote("") == "''"
+        assert sh_quote("") == "''"
 
     def test_simple_value(self):
-        assert _sh_quote("hello") == "'hello'"
+        assert sh_quote("hello") == "'hello'"
 
     def test_single_quote_escaped(self):
         # The only character needing escape inside single quotes is ' itself.
-        assert _sh_quote("it's") == "'it'\\''s'"
+        assert sh_quote("it's") == "'it'\\''s'"
 
     def test_dollar_signs_literal(self):
         # Single-quoting prevents variable expansion.
-        result = _sh_quote("$HOME")
+        result = sh_quote("$HOME")
         assert "$HOME" in result
         assert result == "'$HOME'"
 
     def test_backticks_literal(self):
-        result = _sh_quote("`whoami`")
+        result = sh_quote("`whoami`")
         assert result == "'`whoami`'"
 
     def test_spaces_preserved(self):
-        result = _sh_quote("hello world")
+        result = sh_quote("hello world")
         assert result == "'hello world'"
 
     def test_newlines_preserved(self):
-        result = _sh_quote("line1\nline2")
+        result = sh_quote("line1\nline2")
         assert result == "'line1\nline2'"
 
 
 # ---------------------------------------------------------------------------
-# _sh_escape_double
+# sh_escape_double
 # ---------------------------------------------------------------------------
 
 
 class TestShEscapeDouble:
     def test_dollar_escaped(self):
-        assert _sh_escape_double("$VAR") == "\\$VAR"
+        assert sh_escape_double("$VAR") == "\\$VAR"
 
     def test_backtick_escaped(self):
-        assert _sh_escape_double("`cmd`") == "\\`cmd\\`"
+        assert sh_escape_double("`cmd`") == "\\`cmd\\`"
 
     def test_double_quote_escaped(self):
-        assert _sh_escape_double('"hi"') == '\\"hi\\"'
+        assert sh_escape_double('"hi"') == '\\"hi\\"'
 
     def test_backslash_escaped(self):
-        assert _sh_escape_double("a\\b") == "a\\\\b"
+        assert sh_escape_double("a\\b") == "a\\\\b"
 
     def test_normal_text_unchanged(self):
-        assert _sh_escape_double("hello/world") == "hello/world"
+        assert sh_escape_double("hello/world") == "hello/world"
 
     def test_exclamation_not_escaped(self):
         # ! is NOT special in /bin/sh, only in interactive bash.
-        assert _sh_escape_double("wow!") == "wow!"
+        assert sh_escape_double("wow!") == "wow!"
 
     def test_combined_special_chars(self):
-        assert _sh_escape_double('$`"\\') == '\\$\\`\\"\\\\'
+        assert sh_escape_double('$`"\\') == '\\$\\`\\"\\\\'
 
 
 class TestCmdEscapeValue:
     def test_percent_escaped(self):
-        assert _cmd_escape_value("%APPDATA%") == "%%APPDATA%%"
+        assert cmd_escape("%APPDATA%") == "%%APPDATA%%"
 
     def test_quotes_escaped(self):
-        assert _cmd_escape_value('say "hi"') == 'say ""hi""'
+        assert cmd_escape('say "hi"') == 'say ""hi""'
 
 
 # ---------------------------------------------------------------------------
@@ -278,22 +275,6 @@ class TestGenerate:
         # Inside the double-quoted PATH export, $ must be escaped.
         assert "\\$pecial" in script
         assert "path with spaces" in script
-
-    def test_windows_cmd_script_helper(self, dummy_target: Path, dummy_python: Path):
-        script = _generate_cmd_script(
-            target=dummy_target.resolve(),
-            env_vars={"FOO": "%USERPROFILE%"},
-            path_prepends=[r"C:\tools\bin", r"C:\Program Files\MyApp"],
-            project_name="proj",
-            prepend_vars={"PATHLIKE": r"C:\libs"},
-            python=dummy_python.resolve(),
-            timestamp="2026-03-19T00:00:00Z",
-        )
-        assert script.startswith("@echo off")
-        assert 'set "FOO=%%USERPROFILE%%"' in script
-        assert 'set "PATH=C:\\tools\\bin;C:\\Program Files\\MyApp;%PATH%"' in script
-        assert 'set "PATHLIKE=C:\\libs;%PATHLIKE%"' in script
-        assert "%*" in script
 
 
 # ---------------------------------------------------------------------------

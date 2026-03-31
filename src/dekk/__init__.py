@@ -17,7 +17,7 @@ from typing import Any
 try:
     __version__ = version("dekk")
 except PackageNotFoundError:
-    __version__ = "1.2.0"
+    __version__ = "1.3.0"
 
 # ---------------------------------------------------------------------------
 # Lazy import registry: module_path -> list of exported names
@@ -193,6 +193,9 @@ _MODULE_ATTRS: dict[str, list[str]] = {
         "ValidationError",
         "ConfigError",
         "DependencyError",
+        "DekkTimeoutError",
+        "DekkPermissionError",
+        "DekkRuntimeError",
     ],
     # -- CLI Progress --
     "dekk.cli.progress": ["progress_bar", "spinner"],
@@ -206,9 +209,10 @@ _MODULE_ATTRS: dict[str, list[str]] = {
 _RENAMES: dict[str, tuple[str, str]] = {
     "DiagnosticCheckStatus": ("dekk.diagnostics.diagnostic", "CheckStatus"),
     "DiagnosticCheckResult": ("dekk.diagnostics.diagnostic", "CheckResult"),
-    "DekkTimeoutError": ("dekk.cli.errors", "TimeoutError"),
-    "DekkPermissionError": ("dekk.cli.errors", "PermissionError"),
-    "DekkRuntimeError": ("dekk.cli.errors", "RuntimeError"),
+    # Backward-compatible aliases: bare names -> Dekk-prefixed canonical names
+    "TimeoutError": ("dekk.cli.errors", "DekkTimeoutError"),
+    "PermissionError": ("dekk.cli.errors", "DekkPermissionError"),
+    "RuntimeError": ("dekk.cli.errors", "DekkRuntimeError"),
 }
 
 # ---------------------------------------------------------------------------

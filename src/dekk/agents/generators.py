@@ -17,6 +17,7 @@ from typing import Any
 from dekk.agents.constants import (
     AGENTS_JSON,
     AGENTS_MD,
+    ALL_TARGETS,
     CLAUDE_MD,
     CLAUDE_SKILLS_DIR,
     COPILOT_DIR,
@@ -43,6 +44,39 @@ from dekk.agents.providers import (
     render_codex_skill,
 )
 from dekk.agents.providers.shared import remove_file
+from dekk.environment.spec import AgentsSpec
+
+_BUILTIN_TARGETS: frozenset[str] = frozenset({TARGET_ALL, *ALL_TARGETS})
+
+_TARGET_CONFIGS: dict[str, dict[str, str]] = {
+    TARGET_CLAUDE: {
+        "instructions": CLAUDE_MD,
+        "skills": f"{CLAUDE_SKILLS_DIR}/",
+    },
+    TARGET_CODEX: {
+        "instructions": AGENTS_MD,
+        "skills": "~/.codex/skills/",
+    },
+    TARGET_COPILOT: {
+        "instructions": f"{COPILOT_DIR}/{COPILOT_INSTRUCTIONS}",
+        "per_directory": f"{COPILOT_DIR}/{COPILOT_PER_DIR}/",
+    },
+    TARGET_CURSOR: {
+        "instructions": CURSORRULES,
+    },
+}
+
+
+def _validate_target(target: str, known_targets: set[str] | None = None) -> None:
+    """Raise ``ValidationError`` if *target* is not a recognised value."""
+    valid = _BUILTIN_TARGETS | known_targets if known_targets else _BUILTIN_TARGETS
+    if target not in valid:
+        from dekk.cli.errors import ValidationError
+
+        raise ValidationError(
+            f"Unknown target {target!r}",
+            hint=f"Valid targets: {', '.join(sorted(valid))}",
+        )
 
 
 @dataclass
@@ -72,23 +106,7 @@ def _generate_agents_json(
     manifest: dict[str, Any] = {
         "project": project_name,
         "source_of_truth": f"{source_dir_name}/",
-        "agent_configs": {
-            TARGET_CLAUDE: {
-                "instructions": CLAUDE_MD,
-                "skills": f"{CLAUDE_SKILLS_DIR}/",
-            },
-            TARGET_CODEX: {
-                "instructions": AGENTS_MD,
-                "skills": "~/.codex/skills/",
-            },
-            TARGET_COPILOT: {
-                "instructions": f"{COPILOT_DIR}/{COPILOT_INSTRUCTIONS}",
-                "per_directory": f"{COPILOT_DIR}/{COPILOT_PER_DIR}/",
-            },
-            TARGET_CURSOR: {
-                "instructions": CURSORRULES,
-            },
-        },
+        "agent_configs": {k: dict(v) for k, v in _TARGET_CONFIGS.items()},
         "skills": [{"name": s.name, "description": s.description} for s in skills],
     }
     if cli_name:
@@ -115,12 +133,14 @@ class AgentConfigManager:
         project_name: str | None = None,
         cli_name: str | None = None,
         agents: tuple[DekkAgent, ...] | None = None,
+        agents_spec: AgentsSpec | None = None,
     ) -> None:
         self.project_root = project_root
         self.source_dir_name = source_dir
         self.source_dir = project_root / source_dir
         self.cli_name = cli_name
         self.project_name = project_name or project_root.name
+        self._agents_spec = agents_spec
         self._abstractions = {
             agent.target: agent
             for agent in (agents or default_agents())
@@ -141,8 +161,12 @@ class AgentConfigManager:
 
         Returns:
             GenerateResult with list of generated files.
+
+        Raises:
+            ValidationError: If *target* is not a recognised value.
         """
         effective_target = target.lower()
+        _validate_target(effective_target, set(self._abstractions))
         result = GenerateResult()
 
         skills = discover_skills(self.source_dir)
@@ -168,20 +192,33 @@ class AgentConfigManager:
         )
 
         if effective_target == TARGET_ALL:
+            # Honour [agents].targets from .dekk.toml when present.
+            if self._agents_spec and self._agents_spec.targets:
+                allowed = set(self._agents_spec.targets)
+            else:
+                allowed = set(ALL_TARGETS)
             for target_name in (TARGET_CLAUDE, TARGET_CODEX, TARGET_CURSOR, TARGET_COPILOT):
-                result.generated.extend(self._abstractions[target_name].generate(context))
-        elif effective_target in self._abstractions:
+                if target_name in allowed:
+                    result.generated.extend(
+                        self._abstractions[target_name].generate(context)
+                    )
+        else:
             result.generated.extend(self._abstractions[effective_target].generate(context))
 
-        if effective_target == TARGET_ALL:
-            self._generate_manifest(skills)
-            result.generated.append(AGENTS_JSON)
+        # Always update the manifest (merge single-target entries).
+        self._generate_manifest(skills, effective_target)
+        result.generated.append(AGENTS_JSON)
 
         return result
 
     def clean(self, target: str = TARGET_ALL) -> CleanResult:
-        """Remove generated files for the specified target(s)."""
+        """Remove generated files for the specified target(s).
+
+        Raises:
+            ValidationError: If *target* is not a recognised value.
+        """
         effective_target = target.lower()
+        _validate_target(effective_target, set(self._abstractions))
         context = AgentContext(
             project_root=self.project_root,
             source_dir=self.source_dir,
@@ -198,20 +235,59 @@ class AgentConfigManager:
             for target_name in (TARGET_CLAUDE, TARGET_CODEX, TARGET_CURSOR, TARGET_COPILOT):
                 result.removed.extend(self._abstractions[target_name].clean(context))
             result.removed.extend(remove_file(self.project_root / AGENTS_JSON, AGENTS_JSON))
-        elif effective_target in self._abstractions:
+        else:
             result.removed.extend(self._abstractions[effective_target].clean(context))
 
         return result
 
-    def _generate_manifest(self, skills: list[SkillDefinition]) -> None:
-        """Generate .agents.json machine-readable manifest."""
-        _generate_agents_json(
-            self.project_root,
-            skills,
-            self.project_name,
-            self.source_dir_name,
-            self.cli_name,
-        )
+    def _generate_manifest(
+        self,
+        skills: list[SkillDefinition],
+        effective_target: str = TARGET_ALL,
+    ) -> None:
+        """Generate or update ``.agents.json`` machine-readable manifest.
+
+        When *effective_target* is ``"all"`` the full manifest is written.
+        For a single target, the existing manifest is read (if present) and
+        only the entry for that target is updated, preserving other entries.
+        """
+        if effective_target == TARGET_ALL:
+            _generate_agents_json(
+                self.project_root,
+                skills,
+                self.project_name,
+                self.source_dir_name,
+                self.cli_name,
+            )
+        else:
+            agents_json_path = self.project_root / AGENTS_JSON
+
+            # Read existing manifest if present, otherwise start fresh.
+            if agents_json_path.is_file():
+                try:
+                    existing = json.loads(
+                        agents_json_path.read_text(encoding="utf-8")
+                    )
+                except (json.JSONDecodeError, OSError):
+                    existing = {}
+            else:
+                existing = {}
+
+            # Merge / initialise fields.
+            existing.setdefault("project", self.project_name)
+            existing.setdefault("source_of_truth", f"{self.source_dir_name}/")
+            agent_configs = existing.setdefault("agent_configs", {})
+            if effective_target in _TARGET_CONFIGS:
+                agent_configs[effective_target] = dict(_TARGET_CONFIGS[effective_target])
+            existing["skills"] = [
+                {"name": s.name, "description": s.description} for s in skills
+            ]
+            if self.cli_name:
+                existing["cli"] = self.cli_name
+
+            agents_json_path.write_text(
+                json.dumps(existing, indent=2) + "\n", encoding="utf-8"
+            )
 
 
 __all__ = [
