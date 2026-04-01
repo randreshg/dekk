@@ -348,7 +348,7 @@ def _run_project_install(args: list[str], project_root: Path) -> int:
 
 def _run_project_uninstall(args: list[str], project_root: Path) -> int:
     """Run `dekk <app> uninstall` to remove environment, wrappers, and dekk state."""
-    from dekk.cli.styles import print_info, print_success
+    from dekk.cli.styles import print_info
 
     parser = argparse.ArgumentParser(
         prog=f"{CLI_NAME} <appname> {PROJECT_UNINSTALL_COMMAND}",
@@ -399,11 +399,8 @@ def _run_project_uninstall(args: list[str], project_root: Path) -> int:
     from dekk.environment.install import run_uninstall
 
     messages = run_uninstall(project_root)
-    for msg in messages:
-        if "nothing to remove" in msg.lower() or "not found" in msg.lower():
-            print_info(msg)
-        else:
-            print_success(msg)
+    if not messages or all("nothing" in m.lower() for m in messages):
+        print_info("Nothing to remove.")
 
     return 0
 

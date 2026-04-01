@@ -131,6 +131,9 @@ def run_uninstall(project_root: Path) -> list[str]:
 
     Returns a list of human-readable messages describing what was removed.
     """
+    from dekk.cli.progress import spinner
+    from dekk.cli.styles import print_success
+
     spec = EnvironmentSpec.from_file(project_root / ".dekk.toml")
     removed: list[str] = []
 
@@ -142,6 +145,7 @@ def run_uninstall(project_root: Path) -> list[str]:
             spec.install.wrap.name, clean_shell=True,
         )
         removed.append(wr.message)
+        print_success(wr.message)
 
     # 2. Remove the .install/ directory if empty
     install_dir = project_root / ".install"
@@ -149,18 +153,23 @@ def run_uninstall(project_root: Path) -> list[str]:
         install_dir.rmdir()
         removed.append(f"Removed empty directory: {install_dir}")
 
-    # 3. Remove the conda/venv environment
+    # 3. Remove the conda/venv environment (can take a while for multi-GB envs)
     dekk_dir = project_root / ".dekk"
     env_dir = dekk_dir / "env"
     if env_dir.is_dir():
-        shutil.rmtree(env_dir)
-        removed.append(f"Removed environment: {env_dir}")
+        with spinner("Removing environment..."):
+            shutil.rmtree(env_dir)
+        msg = f"Removed environment: {env_dir}"
+        removed.append(msg)
+        print_success(msg)
 
     # 4. Remove install log
     log_path = dekk_dir / "install.log"
     if log_path.is_file():
         log_path.unlink()
-        removed.append(f"Removed log: {log_path}")
+        msg = f"Removed log: {log_path}"
+        removed.append(msg)
+        print_success(msg)
 
     # 5. Remove .dekk/ directory if empty
     if dekk_dir.is_dir() and not any(dekk_dir.iterdir()):
