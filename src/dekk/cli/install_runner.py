@@ -112,10 +112,19 @@ class InstallRunner:
             print_step(label, step_num=i, total=total)
             t0 = time.monotonic()
 
-            if isinstance(action, str):
-                step_ok = self._run_command(action, label, env=env, cwd=cwd)
-            else:
-                step_ok = self._run_callable(action, label)
+            try:
+                if isinstance(action, str):
+                    step_ok = self._run_command(action, label, env=env, cwd=cwd)
+                else:
+                    step_ok = self._run_callable(action, label)
+            except KeyboardInterrupt:
+                elapsed = time.monotonic() - t0
+                result.steps.append(
+                    StepResult(label=label, ok=False, elapsed=elapsed, error="interrupted")
+                )
+                print_blank()
+                print_error(f"Installation cancelled at step {i}/{total}.")
+                return result
 
             elapsed = time.monotonic() - t0
             result.steps.append(StepResult(label=label, ok=step_ok, elapsed=elapsed))
@@ -236,13 +245,13 @@ def select_components(
         # Fallback: use defaults if questionary not installed
         return [c.name for c in components if c.default]  # type: ignore[attr-defined]
 
-    # Use ✓/○ instead of default ●/○ for clearer checked/unchecked state
-    _qcommon.INDICATOR_SELECTED = "\u2713"  # type: ignore[attr-defined]  # ✓
+    # Blue filled dot for selected, dim empty dot for unselected
+    _qcommon.INDICATOR_SELECTED = "\u25cf"  # type: ignore[attr-defined]  # ●
     _qcommon.INDICATOR_UNSELECTED = "\u25cb"  # type: ignore[attr-defined]  # ○
 
     # Pass title as (style, text) tuples so the label text stays default color.
     # When title is a list, questionary uses tokens.extend(choice.title) — bypassing
-    # the class:selected override that would color the entire row green.
+    # the class:selected override that would color the entire row.
     choices = [
         questionary.Choice(
             title=[("", f"{c.label} — {c.description}")],  # type: ignore[attr-defined]
@@ -254,10 +263,9 @@ def select_components(
 
     component_style = PtStyle(
         [
-            ("selected", "fg:#00ff00"),  # green ✓ indicator only
+            ("selected", "fg:#5f87ff"),  # blue ● indicator only
             ("text", "fg:#808080"),  # dim ○ indicator only
-            ("pointer", "fg:#00d7ff bold"),  # cyan pointer
-            ("highlighted", "bold"),  # bold current row
+            ("highlighted", ""),  # no extra styling for current row
         ]
     )
 
@@ -265,6 +273,7 @@ def select_components(
         "Select components to install:",
         choices=choices,
         style=component_style,
+        pointer=None,  # no arrow — just the filled/empty dot
     ).ask()
 
     # None = user pressed Escape/Ctrl-C → cancel
