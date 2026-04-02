@@ -19,6 +19,9 @@ class RuntimeEnvironmentSpec:
     path: str
     file: str | None = None
     name: str | None = None
+    channels: list[str] = field(default_factory=lambda: ["conda-forge"])
+    packages: dict[str, str] = field(default_factory=dict)
+    pip: dict[str, str] = field(default_factory=dict)
 
     @property
     def kind(self) -> EnvironmentKind | None:
@@ -75,6 +78,7 @@ class ComponentSpec:
     description: str
     run: str  # shell command to execute
     default: bool = True  # pre-selected in interactive mode
+    requires: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -178,11 +182,26 @@ class EnvironmentSpec:
                     ),
                 )
 
+            env_file = str(env_data.get("file")) if env_data.get("file") else None
+            env_packages = {str(k): str(v) for k, v in env_data.get("packages", {}).items()}
+            if env_file and env_packages:
+                from dekk.cli.errors import ValidationError
+
+                raise ValidationError(
+                    "Cannot use both environment.file and environment.packages — pick one"
+                )
+
+            channels = env_data.get("channels", ["conda-forge"])
+            pip_pkgs = {str(k): str(v) for k, v in env_data.get("pip", {}).items()}
+
             environment = RuntimeEnvironmentSpec(
                 type=normalize_environment_type(str(env_type)),
                 path=str(env_path),
-                file=str(env_data.get("file")) if env_data.get("file") else None,
+                file=env_file,
                 name=str(env_data.get("name")) if env_data.get("name") else None,
+                channels=[str(c) for c in channels],
+                packages=env_packages,
+                pip=pip_pkgs,
             )
 
         tools = {}
@@ -252,6 +271,7 @@ class EnvironmentSpec:
                         description=comp_data.get("description", ""),
                         run=comp_data["run"],
                         default=comp_data.get("default", True),
+                        requires=comp_data.get("requires", []),
                     )
                 )
             install = InstallSpec(
