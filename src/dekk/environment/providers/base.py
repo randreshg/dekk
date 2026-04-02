@@ -38,11 +38,17 @@ class DekkEnv(ABC):
         prefix: Path,
         file: str | None = None,
         name: str | None = None,
+        channels: list[str] | None = None,
+        packages: dict[str, str] | None = None,
+        pip: dict[str, str] | None = None,
     ) -> None:
         self.kind = kind
         self.prefix = prefix
         self.file = file
         self.name = name
+        self.channels = channels or ["conda-forge"]
+        self.packages = packages
+        self.pip = pip
 
     @property
     def type_name(self) -> str:

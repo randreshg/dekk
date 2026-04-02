@@ -36,6 +36,12 @@ def _merge_env(activation: object) -> dict[str, str]:
     return env
 
 
+def _check_requires(requires: list[str], env: dict[str, str] | None) -> list[str]:
+    """Return names of required tools that are not found on PATH."""
+    path = env.get("PATH") if env else None
+    return [r for r in requires if not shutil.which(r, path=path)]
+
+
 def run_install(
     project_root: Path,
     force: bool = False,
@@ -113,6 +119,12 @@ def run_install(
         selected = selection
         for comp in spec.install.components:
             if comp.name in selected:
+                missing = _check_requires(comp.requires, activated_env)
+                if missing:
+                    from dekk.cli.styles import print_warning
+
+                    print_warning(f"Skipping {comp.label}: missing {', '.join(missing)}")
+                    continue
                 runner.add(f"Installing {comp.label}", comp.run)
 
     # Step 4: Wrap (only if --wrap flag passed AND install.wrap configured)

@@ -33,14 +33,47 @@ CMAKE_TOOL_NAME: Final = "cmake"
 class CondaEnv(DekkEnv):
     """Conda-backed runtime environment."""
 
-    def __init__(self, *, prefix: Path, file: str | None = None, name: str | None = None) -> None:
-        super().__init__(kind=EnvironmentKind.CONDA, prefix=prefix, file=file, name=name)
+    def __init__(
+        self,
+        *,
+        prefix: Path,
+        file: str | None = None,
+        name: str | None = None,
+        channels: list[str] | None = None,
+        packages: dict[str, str] | None = None,
+        pip: dict[str, str] | None = None,
+    ) -> None:
+        super().__init__(
+            kind=EnvironmentKind.CONDA, prefix=prefix, file=file, name=name,
+            channels=channels, packages=packages, pip=pip,
+        )
 
     def exists(self) -> bool:
         return self.prefix.is_dir() and (self.prefix / CONDA_METADATA_DIRNAME).is_dir()
 
     def runtime_paths(self, os_strategy: DekkOS) -> tuple[Path, ...]:
         return os_strategy.conda_runtime_paths(self.prefix)
+
+    def _generate_env_file(self, output_path: Path) -> Path:
+        """Write conda env YAML from inline packages. Returns the file path."""
+        lines = [f"name: {self.name or 'dekk-env'}"]
+        lines.append("channels:")
+        for ch in self.channels:
+            lines.append(f"  - {ch}")
+        lines.append("dependencies:")
+        for pkg, version in self.packages.items():
+            if version:
+                lines.append(f"  - {pkg}={version}")
+            else:
+                lines.append(f"  - {pkg}")
+        if self.pip:
+            lines.append("  - pip:")
+            for pkg, version in self.pip.items():
+                spec = f"{pkg}{version}" if version else pkg
+                lines.append(f"      - {spec}")
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return output_path
 
     def configure(
         self,
@@ -73,20 +106,27 @@ class CondaEnv(DekkEnv):
             env_file_path = project_root / self.file
             if not env_file_path.is_file():
                 raise NotFoundError(f"Environment file not found: {env_file_path}")
-            if existing:
-                cmd = [
-                    conda_cmd, "env", "update",
-                    "-p", str(self.prefix), "-f", str(env_file_path), "-y",
-                ]
-            else:
-                cmd = [
-                    conda_cmd, "env", "create",
-                    "-p", str(self.prefix), "-f", str(env_file_path), "-y",
-                ]
-                if force:
-                    cmd.append("--force")
+        elif self.packages:
+            env_file_path = self._generate_env_file(project_root / ".dekk" / "environment.yaml")
         else:
+            # No file, no packages — bare create
             cmd = [conda_cmd, "create", "-p", str(self.prefix), "-c", CONDA_FORGE_CHANNEL, "-y"]
+            import shlex
+            return shlex.join(cmd)
+
+        # File-based create/update (works for both external and generated)
+        if existing:
+            cmd = [
+                conda_cmd, "env", "update",
+                "-p", str(self.prefix), "-f", str(env_file_path), "-y",
+            ]
+        else:
+            cmd = [
+                conda_cmd, "env", "create",
+                "-p", str(self.prefix), "-f", str(env_file_path), "-y",
+            ]
+            if force:
+                cmd.append("--force")
 
         import shlex
         return shlex.join(cmd)
@@ -113,6 +153,12 @@ class CondaEnv(DekkEnv):
                 return DekkEnvSetupResult(
                     errors=[f"Environment file not found: {env_file_path}"]
                 )
+        elif self.packages:
+            env_file_path = self._generate_env_file(project_root / ".dekk" / "environment.yaml")
+        else:
+            env_file_path = None
+
+        if env_file_path:
             if existing:
                 cmd = [
                     conda_cmd, "env", "update",
@@ -306,9 +352,20 @@ def _find_runtime_executable(
     return None
 
 
-def create_conda_env(*, prefix: Path, file: str | None = None, name: str | None = None) -> CondaEnv:
+def create_conda_env(
+    *,
+    prefix: Path,
+    file: str | None = None,
+    name: str | None = None,
+    channels: list[str] | None = None,
+    packages: dict[str, str] | None = None,
+    pip: dict[str, str] | None = None,
+) -> CondaEnv:
     """Construct a `CondaEnv` from resolved spec values."""
-    return CondaEnv(prefix=prefix, file=file, name=name)
+    return CondaEnv(
+        prefix=prefix, file=file, name=name,
+        channels=channels, packages=packages, pip=pip,
+    )
 
 
 __all__ = ["CondaEnv", "create_conda_env"]

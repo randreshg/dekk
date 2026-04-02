@@ -23,7 +23,14 @@ def resolve_environment(spec: EnvironmentSpec, *, project_root: Path) -> DekkEnv
     if factory is None:
         return None
 
-    return factory(prefix=prefix, file=spec.environment.file, name=spec.environment.name)
+    return factory(
+        prefix=prefix,
+        file=spec.environment.file,
+        name=spec.environment.name,
+        channels=spec.environment.channels,
+        packages=spec.environment.packages or None,
+        pip=spec.environment.pip or None,
+    )
 
 
 __all__ = ["DekkEnv", "resolve_environment"]
