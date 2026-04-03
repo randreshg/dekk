@@ -17,7 +17,13 @@ Usage::
 
 from __future__ import annotations
 
-from enum import StrEnum
+import sys as _sys
+if _sys.version_info >= (3, 11):
+    from enum import StrEnum
+else:
+    import enum as _enum
+    class StrEnum(str, _enum.Enum):  # Python 3.10 compat
+        pass
 from typing import TYPE_CHECKING, Any, Final
 
 if TYPE_CHECKING:
@@ -174,12 +180,14 @@ def print_debug(msg: str) -> None:
 
 def print_header(title: str, subtitle: str | None = None) -> None:
     """Print a header with minimal token usage."""
+    from rich.text import Text
+
     c = _get_console()
     c.print()
-    c.print(f"[{Colors.HEADER}]{title}[/]")
+    c.print(Text(title, style=Colors.HEADER))
     if subtitle:
-        c.print(f"[dim]{subtitle}[/]")
-    c.print(f"[dim]{'─' * 40}[/]")
+        c.print(Text(subtitle, style="dim"))
+    c.print(Text("─" * 40, style="dim"))
 
 
 def print_step(msg: str, step_num: int | None = None, total: int | None = None) -> None:

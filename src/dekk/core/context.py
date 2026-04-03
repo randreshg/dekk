@@ -16,7 +16,8 @@ import platform
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
-from datetime import UTC, datetime
+from datetime import datetime, timezone
+UTC = timezone.utc  # Python 3.10 compat
 from pathlib import Path
 from typing import Any, Final
 
