@@ -137,17 +137,16 @@ class ClaudeCodeAgent(DekkAgent):
             f"{context.source_dir_name}/{CLAUDE_PLUGIN_MANIFEST_DIR}/{CLAUDE_PLUGIN_MANIFEST}"
         )
 
-        # 2. .mcp.json
+        # 2. .mcp.json (plugin-internal paths use ${CLAUDE_PLUGIN_ROOT})
         if enrichment.mcp_tools:
-            server_script = (
-                f"{context.source_dir_name}/{CLAUDE_MCP_DIR}/"
-                f"{enrichment.project_name}{MCP_SERVER_SUFFIX}"
-            )
+            server_file = f"{enrichment.project_name}{MCP_SERVER_SUFFIX}"
             mcp_config = {
                 MCP_KEY_SERVERS: {
                     enrichment.project_name: {
                         MCP_KEY_COMMAND: MCP_COMMAND,
-                        MCP_KEY_ARGS: [server_script],
+                        MCP_KEY_ARGS: [
+                            f"${{CLAUDE_PLUGIN_ROOT}}/{CLAUDE_MCP_DIR}/{server_file}",
+                        ],
                     }
                 }
             }
@@ -156,13 +155,14 @@ class ClaudeCodeAgent(DekkAgent):
             )
             results.append(f"{context.source_dir_name}/{CLAUDE_MCP_JSON}")
 
-        # 3. Hooks: combine platform-agnostic hooks + Claude-specific build guard
-        all_hooks: list[HookDef] = list(enrichment.hooks)
+        # 3. Hooks: build two variants — plugin paths use ${CLAUDE_PLUGIN_ROOT},
+        #    settings.json uses project-relative paths.
         hooks_dir = source / CLAUDE_HOOKS_DIR
+        plugin_hooks_list: list[HookDef] = list(enrichment.hooks)
+        settings_hooks_list: list[HookDef] = list(enrichment.hooks)
 
         if enrichment.blocked_commands:
             hooks_dir.mkdir(parents=True, exist_ok=True)
-            guard_rel = f"{context.source_dir_name}/{CLAUDE_HOOKS_DIR}/{GUARD_SCRIPT_NAME}"
             guard_path = hooks_dir / GUARD_SCRIPT_NAME
             guard_path.write_text(
                 self._generate_guard_script(
@@ -171,21 +171,27 @@ class ClaudeCodeAgent(DekkAgent):
                 encoding="utf-8",
             )
             guard_path.chmod(0o755)
-            results.append(guard_rel)
-            all_hooks.append(HookDef(
-                event="PreToolUse",
-                matcher="Bash",
-                command=guard_rel,
-                description=f"Block raw {', '.join(enrichment.blocked_commands)} usage",
+            guard_desc = f"Block raw {', '.join(enrichment.blocked_commands)} usage"
+            results.append(
+                f"{context.source_dir_name}/{CLAUDE_HOOKS_DIR}/{GUARD_SCRIPT_NAME}"
+            )
+            plugin_hooks_list.append(HookDef(
+                event="PreToolUse", matcher="Bash",
+                command=f"${{CLAUDE_PLUGIN_ROOT}}/{CLAUDE_HOOKS_DIR}/{GUARD_SCRIPT_NAME}",
+                description=guard_desc,
+            ))
+            settings_hooks_list.append(HookDef(
+                event="PreToolUse", matcher="Bash",
+                command=f"{context.source_dir_name}/{CLAUDE_HOOKS_DIR}/{GUARD_SCRIPT_NAME}",
+                description=guard_desc,
             ))
 
-        if all_hooks:
+        if plugin_hooks_list:
             hooks_dir.mkdir(parents=True, exist_ok=True)
-            hooks_record = self._build_hooks_record(all_hooks)
-            # Plugin hooks.json wraps events under a "hooks" key
-            plugin_hooks = {SETTINGS_KEY_HOOKS: hooks_record}
+            plugin_hooks_record = self._build_hooks_record(plugin_hooks_list)
+            plugin_hooks_file = {SETTINGS_KEY_HOOKS: plugin_hooks_record}
             (hooks_dir / CLAUDE_HOOKS_JSON).write_text(
-                json.dumps(plugin_hooks, indent=2) + "\n",
+                json.dumps(plugin_hooks_file, indent=2) + "\n",
                 encoding="utf-8",
             )
             results.append(
@@ -239,8 +245,10 @@ class ClaudeCodeAgent(DekkAgent):
                 MCP_KEY_ARGS: [server_script],
             }
 
-        if all_hooks:
-            settings[SETTINGS_KEY_HOOKS] = self._build_hooks_record(all_hooks)
+        if settings_hooks_list:
+            settings[SETTINGS_KEY_HOOKS] = self._build_hooks_record(
+                settings_hooks_list
+            )
 
         settings_path.write_text(
             json.dumps(settings, indent=2) + "\n", encoding="utf-8"
