@@ -182,8 +182,10 @@ class ClaudeCodeAgent(DekkAgent):
         if all_hooks:
             hooks_dir.mkdir(parents=True, exist_ok=True)
             hooks_record = self._build_hooks_record(all_hooks)
+            # Plugin hooks.json wraps events under a "hooks" key
+            plugin_hooks = {SETTINGS_KEY_HOOKS: hooks_record}
             (hooks_dir / CLAUDE_HOOKS_JSON).write_text(
-                json.dumps(hooks_record, indent=2) + "\n",
+                json.dumps(plugin_hooks, indent=2) + "\n",
                 encoding="utf-8",
             )
             results.append(
