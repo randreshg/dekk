@@ -17,9 +17,10 @@ import subprocess
 import sys
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
-UTC = timezone.utc  # Python 3.10 compat
 from pathlib import Path
 from typing import Any, Final
+
+UTC = timezone.utc  # Python 3.10 compat
 
 GIT_DIR_NAME: Final = ".git"
 PROJECT_ROOT_MARKERS: Final = (

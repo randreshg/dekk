@@ -17,14 +17,16 @@ Usage::
 
 from __future__ import annotations
 
-import sys as _sys
-if _sys.version_info >= (3, 11):
+import sys
+from typing import TYPE_CHECKING, Any, Final
+
+if sys.version_info >= (3, 11):
     from enum import StrEnum
 else:
     import enum as _enum
+
     class StrEnum(str, _enum.Enum):  # Python 3.10 compat
         pass
-from typing import TYPE_CHECKING, Any, Final
 
 if TYPE_CHECKING:
     from rich.console import Console
