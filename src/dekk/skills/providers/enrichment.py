@@ -49,7 +49,7 @@ class HookDef:
     """A detected hook from ``[tools]``/``[commands]`` analysis."""
 
     event: str
-    matcher: dict[str, str]
+    matcher: str
     command: str
     description: str
 
@@ -138,13 +138,13 @@ def detect_hooks(
     """Auto-detect hooks from tools and commands analysis."""
     hooks: list[HookDef] = []
 
-    # Formatter hook: auto-format on file write/edit (single hook with joined patterns)
+    # Formatter hook: auto-format on file write/edit
     fmt_name, fmt_extensions = detect_formatter(tools)
     if fmt_name:
         hooks.append(HookDef(
             event="PostToolUse",
-            matcher={"tool_name": "Write|Edit", "file_pattern": fmt_extensions},
-            command=f"{fmt_name} -i $FILE_PATH",
+            matcher="Write|Edit",
+            command=f"{fmt_name} -i $FILEPATH",
             description=f"Auto-format with {fmt_name}",
         ))
 
@@ -156,7 +156,7 @@ def detect_hooks(
             doctor_cmd = f"{cli_name} doctor"
         hooks.append(HookDef(
             event="SessionStart",
-            matcher={},
+            matcher="startup",
             command=doctor_cmd,
             description="Validate environment on session start",
         ))
@@ -166,7 +166,7 @@ def detect_hooks(
     for tool_name in blocked:
         hooks.append(HookDef(
             event="PreToolUse",
-            matcher={"tool_name": "Bash", "command_pattern": f"^{tool_name}\\b"},
+            matcher="Bash",
             command=f'echo "Use {cli_name or "dekk"} instead of {tool_name}" && exit 1',
             description=f"Block raw {tool_name} usage",
         ))

@@ -19,11 +19,8 @@ from dekk.skills.constants import (
     CLAUDE_SETTINGS_JSON,
     CLAUDE_SKILLS_DIR,
     HOOKS_KEY_COMMAND,
-    HOOKS_KEY_COMMAND_PATTERN,
-    HOOKS_KEY_FILE_PATTERN,
     HOOKS_KEY_HOOKS,
     HOOKS_KEY_MATCHER,
-    HOOKS_KEY_TOOL_NAME,
     HOOKS_KEY_TYPE,
     HOOKS_KEY_TYPE_COMMAND,
     MCP_COMMAND,
@@ -234,11 +231,12 @@ class ClaudeCodeAgent(DekkAgent):
     def _build_hooks_record(
         hooks: list[Any],
     ) -> dict[str, list[dict[str, Any]]]:
-        """Build the new Claude Code hooks record format.
+        """Build Claude Code hooks record format.
 
-        Groups hooks by event name, each with matcher + hooks array::
+        Groups hooks by event name, each with a string matcher + hooks array::
 
-            {"PostToolUse": [{"matcher": {...}, "hooks": [{"type": "command", "command": "..."}]}]}
+            {"PostToolUse": [{"matcher": "Write|Edit",
+              "hooks": [{"type": "command", "command": "..."}]}]}
         """
         from collections import defaultdict
 
@@ -256,15 +254,7 @@ class ClaudeCodeAgent(DekkAgent):
                 ],
             }
             if hook.matcher:
-                matcher: dict[str, str] = {}
-                if HOOKS_KEY_TOOL_NAME in hook.matcher:
-                    matcher[HOOKS_KEY_TOOL_NAME] = hook.matcher[HOOKS_KEY_TOOL_NAME]
-                if HOOKS_KEY_FILE_PATTERN in hook.matcher:
-                    matcher[HOOKS_KEY_FILE_PATTERN] = hook.matcher[HOOKS_KEY_FILE_PATTERN]
-                if HOOKS_KEY_COMMAND_PATTERN in hook.matcher:
-                    matcher[HOOKS_KEY_COMMAND_PATTERN] = hook.matcher[HOOKS_KEY_COMMAND_PATTERN]
-                if matcher:
-                    hook_entry[HOOKS_KEY_MATCHER] = matcher
+                hook_entry[HOOKS_KEY_MATCHER] = hook.matcher
             grouped[hook.event].append(hook_entry)
         return dict(grouped)
 
