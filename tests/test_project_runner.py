@@ -498,19 +498,70 @@ def test_simple_command_skips_shell_layer(
     assert call[0][0] == ["python", "tool.py", "run", "--flag", "value with space"]
 
 
+# Metachars common to both POSIX /bin/sh and Windows cmd.exe: pipe, chain, redirect.
+_SHELL_METACHAR_CASES_ANY_PLATFORM = [
+    "cat a.txt | grep foo",
+    "make && make test",
+    "bar > out.log",
+]
+
+# POSIX-only metachars: $ var expansion, * ? glob, ` ` command sub, ~ home.
+# cmd.exe treats these literally, so they stay on the direct-dispatch path.
+_SHELL_METACHAR_CASES_POSIX_ONLY = [
+    "echo $HOME",
+    "ls tests/*.py",
+    "echo `date`",
+    "echo ~/x",
+]
+
+
+@pytest.mark.parametrize("run", _SHELL_METACHAR_CASES_ANY_PLATFORM)
+def test_shellful_command_uses_shell_true_cross_platform(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, run: str
+) -> None:
+    _write_simple_spec(tmp_path, run.replace('"', '\\"'))
+    monkeypatch.chdir(tmp_path)
+
+    with patch("subprocess.run") as run_mock:
+        run_mock.return_value.returncode = 0
+        with patch("dekk.project.runner.EnvironmentActivator.activate") as activate_mock:
+            activate_mock.return_value.env_vars = {"PATH": "/x"}
+            run_project_command("demo", ["go"])
+
+    call = run_mock.call_args
+    assert call.kwargs.get("shell") is True
+    assert isinstance(call[0][0], str)
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX-only metacharacters")
+@pytest.mark.parametrize("run", _SHELL_METACHAR_CASES_POSIX_ONLY)
+def test_shellful_command_uses_shell_true_posix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, run: str
+) -> None:
+    _write_simple_spec(tmp_path, run.replace('"', '\\"'))
+    monkeypatch.chdir(tmp_path)
+
+    with patch("subprocess.run") as run_mock:
+        run_mock.return_value.returncode = 0
+        with patch("dekk.project.runner.EnvironmentActivator.activate") as activate_mock:
+            activate_mock.return_value.env_vars = {"PATH": "/x"}
+            run_project_command("demo", ["go"])
+
+    call = run_mock.call_args
+    assert call.kwargs.get("shell") is True
+    assert isinstance(call[0][0], str)
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows cmd.exe-specific metachars")
 @pytest.mark.parametrize(
     "run",
     [
-        "cat a.txt | grep foo",
-        "make && make test",
-        "echo $HOME",
-        "ls tests/*.py",
-        "bar > out.log",
-        "echo `date`",
-        "echo ~/x",
+        "echo %USERNAME%",   # cmd.exe var expansion
+        "dir ^c",            # cmd.exe escape char
+        "setup.bat",          # batch file requires cmd.exe
     ],
 )
-def test_shellful_command_uses_shell_true(
+def test_shellful_command_uses_shell_true_windows(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, run: str
 ) -> None:
     _write_simple_spec(tmp_path, run.replace('"', '\\"'))
