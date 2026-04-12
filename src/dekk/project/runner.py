@@ -19,6 +19,7 @@ from dekk.environment.spec import (
     EnvironmentSpec,
     find_envspec,
 )
+from dekk.execution.os import get_dekk_os
 from dekk.project.subcommands import CLI_NAME, PROJECT_BUILTIN_DESCRIPTIONS
 from dekk.project.subcommands import DOCTOR as PROJECT_DOCTOR_COMMAND
 from dekk.project.subcommands import INSTALL as PROJECT_INSTALL_COMMAND
@@ -42,7 +43,7 @@ def _resolve_command(
     Returns:
         (resolved_command_spec, remaining_argv, command_path)
 
-    ``command_path`` is the list of names consumed (e.g., ["llm", "add"]).
+    ``command_path`` is the list of names consumed (e.g., ["group", "sub"]).
     Returns ``(None, argv, [])`` when the first token doesn't match.
     """
     commands = spec.commands
@@ -176,10 +177,42 @@ def run_project_command(app_name: str, argv: list[str]) -> int:
             env[key] = value
 
     base = resolved.run
-    full_cmd = f"{base} {shlex.join(remaining_args)}" if remaining_args else base
-    result = subprocess.run(full_cmd, shell=True, cwd=project_root, env=env, check=False)
-
     qualified_name = " ".join(cmd_path)
+
+    # Prefer direct subprocess dispatch (shell=False) when the `run` string has
+    # no shell metacharacters: spawning /bin/sh on macOS strips DYLD_LIBRARY_PATH
+    # under SIP, silently breaking env-based dylib resolution for project-local
+    # binaries. The OS abstraction owns the metachar set per platform.
+    if get_dekk_os().command_needs_shell(base):
+        full_cmd = f"{base} {shlex.join(remaining_args)}" if remaining_args else base
+        result = subprocess.run(
+            full_cmd, shell=True, cwd=project_root, env=env, check=False
+        )
+    else:
+        try:
+            argv_cmd = shlex.split(base) + list(remaining_args)
+        except ValueError:
+            full_cmd = (
+                f"{base} {shlex.join(remaining_args)}" if remaining_args else base
+            )
+            result = subprocess.run(
+                full_cmd, shell=True, cwd=project_root, env=env, check=False
+            )
+        else:
+            try:
+                result = subprocess.run(
+                    argv_cmd, shell=False, cwd=project_root, env=env, check=False
+                )
+            except FileNotFoundError as exc:
+                raise NotFoundError(
+                    f"Command '{qualified_name}' failed: "
+                    f"'{exc.filename or argv_cmd[0]}' not found",
+                    hint=(
+                        f"Check the 'run' field in .dekk.toml or ensure the binary "
+                        f"is on PATH. Run `{CLI_NAME} {spec.project_name} doctor` "
+                        f"to check dependencies."
+                    ),
+                ) from exc
 
     if result.returncode == 127:
         raise NotFoundError(
@@ -325,7 +358,7 @@ def _print_group_help(
     group: CommandSpec,
     cmd_path: list[str],
 ) -> None:
-    """Print help for a command group (e.g., ``dekk app llm``)."""
+    """Print help for a command group (e.g., ``dekk app group``)."""
     from rich.text import Text
 
     from dekk.cli.styles import Colors, _get_console
@@ -363,7 +396,7 @@ def _print_leaf_help(
 
 
 def _print_command_help(spec: EnvironmentSpec, args: list[str]) -> None:
-    """Print help for a command, supporting dotted paths (e.g., ``help llm add``)."""
+    """Print help for a command, supporting dotted paths (e.g., ``help group sub``)."""
     command_name = args[0]
 
     if _is_builtin_project_command(spec, command_name):

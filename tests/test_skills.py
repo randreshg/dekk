@@ -547,7 +547,7 @@ class TestScaffold:
 
 class TestHierarchicalDiscovery:
     def test_nested_skill_discovery(self, tmp_path: Path) -> None:
-        """discover_skills finds nested SKILL.md files (e.g., llm/add/SKILL.md)."""
+        """discover_skills finds nested SKILL.md files (e.g., group/sub/SKILL.md)."""
         from dekk.skills.discovery import discover_skills
 
         source = tmp_path / ".agents"
@@ -556,14 +556,14 @@ class TestHierarchicalDiscovery:
         (skills / "build" / "SKILL.md").write_text(
             "---\nname: build\ndescription: Build\n---\n"
         )
-        (skills / "llm" / "add").mkdir(parents=True)
-        (skills / "llm" / "add" / "SKILL.md").write_text(
-            "---\nname: add\ndescription: Add credential\n---\n"
+        (skills / "group" / "sub").mkdir(parents=True)
+        (skills / "group" / "sub" / "SKILL.md").write_text(
+            "---\nname: sub\ndescription: Subcommand\n---\n"
         )
         found = discover_skills(source)
         names = {s.name for s in found}
         assert "build" in names
-        assert "add" in names
+        assert "sub" in names
         assert len(found) == 2
 
     def test_hierarchical_scaffold(self, tmp_path: Path) -> None:
@@ -571,10 +571,10 @@ class TestHierarchicalDiscovery:
         from dekk.skills.scaffold import DiscoveredCommand, commands_to_skills
 
         skills_dir = tmp_path / "skills"
-        cmds = [DiscoveredCommand(name="llm/add", description="Add", run="app llm add")]
+        cmds = [DiscoveredCommand(name="group/sub", description="Sub", run="app group sub")]
         created = commands_to_skills(cmds, skills_dir)
         assert len(created) == 1
-        assert (skills_dir / "llm" / "add" / "SKILL.md").is_file()
+        assert (skills_dir / "group" / "sub" / "SKILL.md").is_file()
 
 
 # ============================================================================

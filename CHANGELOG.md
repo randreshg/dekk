@@ -2,6 +2,23 @@
 
 All notable changes to `dekk` will be documented in this file.
 
+## 1.10.6 - 2026-04-12
+
+- Fixed project commands losing `DYLD_LIBRARY_PATH` /
+  `DYLD_FALLBACK_LIBRARY_PATH` on macOS. `run_project_command` now dispatches
+  the `run` string directly via `subprocess.run(..., shell=False)` when it
+  has no shell metacharacters, bypassing `/bin/sh` — which is SIP-restricted
+  on Darwin and strips `DYLD_*` from the environment on exec, silently
+  breaking env-based dylib resolution for project-local binaries.
+- Added `command_needs_shell(cmd) -> bool` to the `DekkOS` OS-abstraction
+  Protocol, implemented for POSIX (shell metachars: `| & ; < > $ \` * ? ~ \n`)
+  and Windows (cmd.exe metachars + `.bat`/`.cmd` invocations). Commands that
+  genuinely need a shell still route through `shell=True`.
+- Replaced domain-flavored fixture names (`llm`, "LLM credentials",
+  `register`/`credential`, `openai`) in tests and docstrings with neutral
+  placeholders (`group`/`sub1`/`sub2`). dekk has no credential-handling
+  feature; the prior examples implied one.
+
 ## 1.7.0 - 2026-04-02
 
 - Added inline package declarations (`channels`, `packages`, `pip`) to

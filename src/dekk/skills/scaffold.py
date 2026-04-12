@@ -190,7 +190,7 @@ def discover_commands_from_toml(spec: Any) -> list[DiscoveredCommand]:
     If any command has ``skill=True``, only skill commands are returned.
     If none do, all commands are returned (backward compat).
 
-    Recursively walks command groups, emitting qualified names like ``llm/add``.
+    Recursively walks command groups, emitting qualified names like ``group/sub``.
     """
     commands_dict = getattr(spec, TOML_COMMANDS_KEY, {})
     if not commands_dict:
@@ -328,7 +328,7 @@ def _render_project_md(
 def commands_to_skills(commands: list[DiscoveredCommand], skills_dir: Path) -> list[Path]:
     """Convert discovered commands into ``skills/<name>/SKILL.md`` template files.
 
-    Handles hierarchical names like ``llm/add`` by creating nested directories.
+    Handles hierarchical names like ``group/sub`` by creating nested directories.
     Only creates files that don't already exist (won't overwrite user customizations).
 
     Returns:
@@ -336,7 +336,7 @@ def commands_to_skills(commands: list[DiscoveredCommand], skills_dir: Path) -> l
     """
     created: list[Path] = []
     for cmd in commands:
-        # Support hierarchical names: "llm/add" -> skills/llm/add/SKILL.md
+        # Support hierarchical names: "group/sub" -> skills/group/sub/SKILL.md
         skill_dir = skills_dir / cmd.name
         skill_file = skill_dir / SKILL_FILENAME
         if skill_file.exists():

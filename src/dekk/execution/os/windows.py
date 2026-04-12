@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shlex
 import subprocess
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -27,6 +28,12 @@ WINDOWS_FALLBACK_PYTHON = "python"
 WINDOWS_PRIMARY_PIP = "pip.exe"
 WINDOWS_FALLBACK_PIP = "pip"
 WINDOWS_PATH_ENV = "PATH"
+
+# cmd.exe metacharacters that change the meaning of a command string.
+# Batch scripts (.bat / .cmd) also require cmd.exe to interpret their
+# directives, even with no metacharacters on the invocation line.
+_CMD_SHELL_METACHARS = frozenset("|&<>^%\n")
+_BATCH_SUFFIXES = (".bat", ".cmd")
 
 
 @dataclass(frozen=True)
@@ -72,6 +79,15 @@ class WindowsDekkOS:
 
     def shared_library_path_var(self) -> str | None:
         return None
+
+    def command_needs_shell(self, cmd: str) -> bool:
+        if any(c in _CMD_SHELL_METACHARS for c in cmd):
+            return True
+        try:
+            head = shlex.split(cmd, posix=False)
+        except ValueError:
+            return True
+        return bool(head and head[0].lower().endswith(_BATCH_SUFFIXES))
 
     def venv_bin_dir(self, venv_path: Path) -> Path:
         return venv_path / WINDOWS_SCRIPTS_DIRNAME

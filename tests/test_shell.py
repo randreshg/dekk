@@ -323,13 +323,13 @@ class TestCompletionGenerator:
                 ),
                 Subcommand(name="install", description="Install conda environment"),
                 Subcommand(
-                    name="register",
-                    description="Manage LLM credentials",
+                    name="group",
+                    description="Example group",
                     subcommands=(
-                        Subcommand(name="add", description="Add a credential"),
-                        Subcommand(name="list", description="List credentials"),
-                        Subcommand(name="remove", description="Remove a credential"),
-                        Subcommand(name="test", description="Test credentials"),
+                        Subcommand(name="sub1", description="First sub"),
+                        Subcommand(name="sub2", description="Second sub"),
+                        Subcommand(name="sub3", description="Third sub"),
+                        Subcommand(name="sub4", description="Fourth sub"),
                     ),
                 ),
             ),
@@ -369,8 +369,8 @@ class TestCompletionGenerator:
 
     def test_nested_subcommands_in_bash(self):
         script = self.generator.generate(self.spec, ShellKind.BASH)
-        assert "register" in script
-        assert "add" in script  # nested under register
+        assert "group" in script
+        assert "sub1" in script  # nested under group
 
 
 # ---------------------------------------------------------------------------

@@ -25,6 +25,13 @@ DARWIN_SYSTEM_NAME = "Darwin"
 DARWIN_LIBRARY_PATH_ENV = "DYLD_LIBRARY_PATH"
 POSIX_LIBRARY_PATH_ENV = "LD_LIBRARY_PATH"
 
+# Characters whose presence in a command string changes the meaning of the
+# string and therefore requires /bin/sh to evaluate (pipes, redirects, globs,
+# variable expansion, command substitution, home expansion, multi-line).
+# Over-inclusion is safe: false positives merely route through the shell,
+# which was the pre-existing behavior.
+_POSIX_SHELL_METACHARS = frozenset("|&;<>$`*?~\n")
+
 
 @dataclass(frozen=True)
 class PosixDekkOS:
@@ -58,6 +65,9 @@ class PosixDekkOS:
         if platform.system() == DARWIN_SYSTEM_NAME:
             return DARWIN_LIBRARY_PATH_ENV
         return POSIX_LIBRARY_PATH_ENV
+
+    def command_needs_shell(self, cmd: str) -> bool:
+        return any(c in _POSIX_SHELL_METACHARS for c in cmd)
 
     def venv_bin_dir(self, venv_path: Path) -> Path:
         return venv_path / POSIX_BIN_DIRNAME

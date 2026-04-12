@@ -341,11 +341,11 @@ def _write_hierarchical_spec(root: Path) -> Path:
         'build = { run = "make", description = "Build", skill = true, group = "Dev" }\n'
         'clean = { run = "rm -rf", description = "Clean", group = "Dev" }\n'
         'deploy = { run = "deploy.sh", description = "Deploy" }\n\n'
-        "[commands.llm]\n"
-        'description = "Manage LLM credentials"\n'
+        "[commands.group]\n"
+        'description = "Example group"\n'
         'group = "Config"\n'
-        'add = { run = "app llm add", description = "Add credential", skill = true }\n'
-        'list = { run = "app llm list", description = "List credentials" }\n',
+        'sub1 = { run = "app group sub1", description = "First subcommand", skill = true }\n'
+        'sub2 = { run = "app group sub2", description = "Second subcommand" }\n',
         encoding="utf-8",
     )
     return spec
@@ -359,17 +359,17 @@ def test_hierarchical_command_parsing(tmp_path: Path, monkeypatch: pytest.Monkey
     monkeypatch.chdir(tmp_path)
 
     spec = EnvironmentSpec.from_file(tmp_path / ".dekk.toml")
-    assert "llm" in spec.commands
-    llm = spec.commands["llm"]
-    assert llm.is_group
-    assert "add" in llm.commands
-    assert llm.commands["add"].run == "app llm add"
-    assert llm.commands["add"].skill is True
-    assert llm.description == "Manage LLM credentials"
+    assert "group" in spec.commands
+    grp = spec.commands["group"]
+    assert grp.is_group
+    assert "sub1" in grp.commands
+    assert grp.commands["sub1"].run == "app group sub1"
+    assert grp.commands["sub1"].skill is True
+    assert grp.description == "Example group"
 
 
 def test_hierarchical_command_execution(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """``dekk demo llm add`` resolves through the tree and runs the leaf command."""
+    """``dekk demo group sub1`` resolves through the tree and runs the leaf."""
     _write_hierarchical_spec(tmp_path)
     env_prefix = tmp_path / ".dekk" / "env"
     env_prefix.mkdir(parents=True)
@@ -380,28 +380,30 @@ def test_hierarchical_command_execution(tmp_path: Path, monkeypatch: pytest.Monk
         run_mock.return_value.returncode = 0
         with patch("dekk.project.runner.EnvironmentActivator.activate") as activate_mock:
             activate_mock.return_value.env_vars = {"PATH": str(env_prefix / "bin")}
-            code = run_project_command("demo", ["llm", "add", "--provider", "openai"])
+            code = run_project_command("demo", ["group", "sub1", "--flag", "value"])
 
     assert code == 0
     call_args = run_mock.call_args
-    assert "app llm add --provider openai" in call_args[0][0]
+    # shell-free dispatch: argv list with shell=False
+    assert call_args[0][0] == ["app", "group", "sub1", "--flag", "value"]
+    assert call_args.kwargs.get("shell") is False
 
 
 def test_group_help_on_bare_group(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """``dekk demo llm`` (no subcommand) shows group help."""
+    """``dekk demo group`` (no subcommand) shows group help."""
     _write_hierarchical_spec(tmp_path)
     monkeypatch.chdir(tmp_path)
 
-    code = run_project_command("demo", ["llm"])
+    code = run_project_command("demo", ["group"])
 
     assert code == 0
     out = capsys.readouterr().out
-    assert "llm" in out
-    assert "add" in out
-    assert "list" in out
-    assert "Manage LLM credentials" in out
+    assert "group" in out
+    assert "sub1" in out
+    assert "sub2" in out
+    assert "Example group" in out
 
 
 def test_grouped_help_output(
@@ -430,11 +432,11 @@ def test_group_shows_arrow_indicator(
 
     out = capsys.readouterr().out
     for line in out.split("\n"):
-        if "llm" in line and "Manage" in line:
+        if "group" in line and "Example" in line:
             assert "\u2192" in line  # → arrow
             break
     else:
-        pytest.fail("llm group line with arrow not found in help output")
+        pytest.fail("group line with arrow not found in help output")
 
 
 def test_leaf_command_without_run_raises(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -451,6 +453,116 @@ def test_leaf_command_without_run_raises(tmp_path: Path, monkeypatch: pytest.Mon
     with pytest.raises(ValidationError, match="no 'run' field"):
         from dekk.environment.spec import EnvironmentSpec
         EnvironmentSpec.from_file(tmp_path / ".dekk.toml")
+
+
+# -- Shell dispatch: direct spawn vs /bin/sh --------------------------------
+#
+# These pin the contract behind the macOS DYLD-strip fix: commands without
+# shell metacharacters must be dispatched with shell=False so env vars
+# (LD_LIBRARY_PATH, DYLD_LIBRARY_PATH, DYLD_FALLBACK_LIBRARY_PATH) survive
+# the subprocess chain. /bin/sh is SIP-restricted on Darwin and strips
+# DYLD_* when launched, which silently breaks env-based dylib resolution.
+
+
+def _write_simple_spec(root: Path, run: str) -> None:
+    (root / ".dekk.toml").write_text(
+        "[project]\n"
+        'name = "demo"\n\n'
+        "[environment]\n"
+        'type = "conda"\n'
+        'path = "{project}/.dekk/env"\n'
+        'file = "environment.yaml"\n\n'
+        "[commands]\n"
+        f'go = {{ run = "{run}", description = "test" }}\n',
+        encoding="utf-8",
+    )
+    env_prefix = root / ".dekk" / "env"
+    env_prefix.mkdir(parents=True)
+    (env_prefix / "conda-meta").mkdir()
+
+
+def test_simple_command_skips_shell_layer(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _write_simple_spec(tmp_path, "python tool.py run")
+    monkeypatch.chdir(tmp_path)
+
+    with patch("subprocess.run") as run_mock:
+        run_mock.return_value.returncode = 0
+        with patch("dekk.project.runner.EnvironmentActivator.activate") as activate_mock:
+            activate_mock.return_value.env_vars = {"PATH": "/x"}
+            run_project_command("demo", ["go", "--flag", "value with space"])
+
+    call = run_mock.call_args
+    assert call.kwargs.get("shell") is False
+    assert call[0][0] == ["python", "tool.py", "run", "--flag", "value with space"]
+
+
+@pytest.mark.parametrize(
+    "run",
+    [
+        "cat a.txt | grep foo",
+        "make && make test",
+        "echo $HOME",
+        "ls tests/*.py",
+        "bar > out.log",
+        "echo `date`",
+        "echo ~/x",
+    ],
+)
+def test_shellful_command_uses_shell_true(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, run: str
+) -> None:
+    _write_simple_spec(tmp_path, run.replace('"', '\\"'))
+    monkeypatch.chdir(tmp_path)
+
+    with patch("subprocess.run") as run_mock:
+        run_mock.return_value.returncode = 0
+        with patch("dekk.project.runner.EnvironmentActivator.activate") as activate_mock:
+            activate_mock.return_value.env_vars = {"PATH": "/x"}
+            run_project_command("demo", ["go"])
+
+    call = run_mock.call_args
+    assert call.kwargs.get("shell") is True
+    assert isinstance(call[0][0], str)
+
+
+def test_direct_dispatch_preserves_env_mapping(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """env dict reaches subprocess.run verbatim when shell layer is skipped."""
+    _write_simple_spec(tmp_path, "python tool.py")
+    monkeypatch.chdir(tmp_path)
+
+    with patch("subprocess.run") as run_mock:
+        run_mock.return_value.returncode = 0
+        with patch("dekk.project.runner.EnvironmentActivator.activate") as activate_mock:
+            activate_mock.return_value.env_vars = {
+                "DYLD_LIBRARY_PATH": "/opt/lib",
+                "LD_LIBRARY_PATH": "/opt/lib",
+            }
+            run_project_command("demo", ["go"])
+
+    passed_env = run_mock.call_args.kwargs["env"]
+    assert passed_env["DYLD_LIBRARY_PATH"].startswith("/opt/lib")
+    assert passed_env["LD_LIBRARY_PATH"].startswith("/opt/lib")
+
+
+def test_missing_binary_raises_not_found(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """FileNotFoundError from direct dispatch maps to NotFoundError with a hint."""
+    _write_simple_spec(tmp_path, "nope-binary-does-not-exist")
+    monkeypatch.chdir(tmp_path)
+
+    with patch("subprocess.run") as run_mock:
+        run_mock.side_effect = FileNotFoundError(
+            2, "No such file", "nope-binary-does-not-exist"
+        )
+        with patch("dekk.project.runner.EnvironmentActivator.activate") as activate_mock:
+            activate_mock.return_value.env_vars = {"PATH": "/x"}
+            with pytest.raises(NotFoundError, match="not found"):
+                run_project_command("demo", ["go"])
 
 
 def test_command_not_found_exit_127(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -472,32 +584,32 @@ def test_command_not_found_exit_127(tmp_path: Path, monkeypatch: pytest.MonkeyPa
 def test_help_for_nested_command(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """``dekk demo help llm add`` shows help for nested command."""
+    """``dekk demo help group sub1`` shows help for nested command."""
     _write_hierarchical_spec(tmp_path)
     monkeypatch.chdir(tmp_path)
 
-    code = run_project_command("demo", ["help", "llm", "add"])
+    code = run_project_command("demo", ["help", "group", "sub1"])
 
     assert code == 0
     out = capsys.readouterr().out
-    assert "demo:llm:add" in out
-    assert "Add credential" in out
+    assert "demo:group:sub1" in out
+    assert "First subcommand" in out
 
 
 def test_help_for_group_command(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """``dekk demo help llm`` shows group help."""
+    """``dekk demo help group`` shows group help."""
     _write_hierarchical_spec(tmp_path)
     monkeypatch.chdir(tmp_path)
 
-    code = run_project_command("demo", ["help", "llm"])
+    code = run_project_command("demo", ["help", "group"])
 
     assert code == 0
     out = capsys.readouterr().out
-    assert "llm" in out
-    assert "add" in out
-    assert "list" in out
+    assert "group" in out
+    assert "sub1" in out
+    assert "sub2" in out
 
 
 def test_group_without_run_shows_help_not_error(
@@ -507,8 +619,8 @@ def test_group_without_run_shows_help_not_error(
     _write_hierarchical_spec(tmp_path)
     monkeypatch.chdir(tmp_path)
 
-    # llm has no run field, only children — should show help
-    code = run_project_command("demo", ["llm"])
+    # group has no run field, only children — should show help
+    code = run_project_command("demo", ["group"])
     assert code == 0
 
 

@@ -81,7 +81,7 @@ class CommandSpec:
 
     Leaf commands have a non-empty ``run`` field.  Group commands have
     children in ``commands`` and may optionally have a ``run`` for the
-    bare group invocation (e.g., ``dekk app llm`` shows help).
+    bare group invocation (e.g., ``dekk app group`` shows help).
     """
 
     run: str = ""
@@ -140,7 +140,7 @@ def _parse_command(name: str, data: Any) -> CommandSpec:
     Handles three forms:
       - String shorthand: ``build = "make"``
       - Dict with metadata: ``build = { run = "make", description = "..." }``
-      - Group with children: ``[commands.llm]`` containing sub-tables
+      - Group with children: ``[commands.group]`` containing sub-tables
     """
     if isinstance(data, str):
         return CommandSpec(run=data)

@@ -1,4 +1,4 @@
-"""Subprocess runner with log capture for LLM/agent-friendly CLI workflows.
+"""Subprocess runner with log capture for agent-friendly CLI workflows.
 
 Imports of Rich/styles/progress are deferred to first use of run_logged.
 """
@@ -15,7 +15,7 @@ __all__ = [
     "run_logged",
 ]
 
-# Label printed after every logged run so LLMs / agents know where to read.
+# Label printed after every logged run so agents know where to read.
 _BUILD_OUTPUT_LABEL = "Build output ->"
 
 # Default number of trailing log lines shown inline on failure.
