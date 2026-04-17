@@ -2,6 +2,33 @@
 
 All notable changes to `dekk` will be documented in this file.
 
+## 1.10.7 - 2026-04-17
+
+- Fixed Claude Code hook commands to survive launch-from-subdirectory.
+  Previously, `.claude/settings.json` emitted the `PreToolUse:Bash` guard
+  with a project-relative path (e.g. `<src>/hooks/guard-build-tools.sh`),
+  which failed with exit 127 ("No such file or directory") whenever
+  Claude was started outside the project root — surfaced to the user as
+  `PreToolUse:Bash hook error`. Settings-level hooks are now anchored to
+  `$CLAUDE_PROJECT_DIR`:
+  - Guard hook uses the absolute path `$CLAUDE_PROJECT_DIR/<src>/hooks/…`.
+  - Auto-detected hooks (formatter / doctor) are wrapped with
+    `cd "$CLAUDE_PROJECT_DIR" && …` so any project-relative references
+    in the command body resolve correctly.
+- Fixed the auto-formatter hook: replaced the non-existent `$FILEPATH`
+  env var with a `jq`-based extraction of `.tool_input.file_path` from
+  Claude Code's hook stdin payload, and short-circuits when the field is
+  absent so the hook is safe for tools that don't carry `file_path`.
+- Hardened the build-tool guard script: detects a missing `jq` and exits
+  0 (allow) instead of 127 (error), so the hook never breaks the user's
+  workflow on minimal systems. Switched `echo` to `printf '%s'` when
+  piping the tool payload to `jq` to avoid backslash interpretation.
+- Added regression tests under `tests/test_skills.py::TestClaudeHookGeneration`
+  covering: formatter stdin parsing, settings.json guard anchoring to
+  `$CLAUDE_PROJECT_DIR`, plugin `hooks.json` guard anchoring to
+  `${CLAUDE_PLUGIN_ROOT}`, and uniform cwd-anchoring of all detected
+  hooks in `settings.json`.
+
 ## 1.10.6 - 2026-04-12
 
 - Fixed project commands losing `DYLD_LIBRARY_PATH` /

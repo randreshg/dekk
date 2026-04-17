@@ -1061,6 +1061,205 @@ class TestInitConfirmation:
         assert "Scaffolded" in result.output
 
 
+class TestClaudeHookGeneration:
+    """Regression tests for Claude Code hook command generation.
+
+    These guard against path/stdin-handling bugs that surface as
+    ``PreToolUse:Bash hook error`` / ``PostToolUse:Write hook error``
+    when Claude Code is launched from a subdirectory.
+    """
+
+    def test_formatter_hook_does_not_use_FILEPATH_env_var(self) -> None:
+        """``$FILEPATH`` is not a Claude Code hook variable; use stdin jq."""
+        from dekk.environment.spec import CommandSpec
+        from dekk.skills.providers.enrichment import detect_hooks
+
+        hooks = detect_hooks(
+            tools={"clang-format": {}},
+            commands={},
+            cli_name=None,
+        )
+        fmt_hook = next(h for h in hooks if h.event == "PostToolUse")
+        assert "$FILEPATH" not in fmt_hook.command
+        assert ".tool_input.file_path" in fmt_hook.command
+        assert "jq" in fmt_hook.command
+        assert "clang-format" in fmt_hook.command
+
+        _ = CommandSpec  # ensure import path is valid for the test file
+
+    def test_settings_guard_hook_uses_CLAUDE_PROJECT_DIR(self, tmp_path: Path) -> None:
+        """The settings.json guard command must be anchored with an absolute path.
+
+        Bug: relative paths like ``carts-plugin/hooks/guard-build-tools.sh``
+        break when Claude Code is launched from a subdirectory.
+        """
+        import json
+
+        from dekk.environment.spec import EnvironmentSpec, SkillsSpec
+        from dekk.skills.constants import (
+            CLAUDE_HOOKS_DIR,
+            CLAUDE_SETTINGS_DIR,
+            CLAUDE_SETTINGS_JSON,
+            SETTINGS_KEY_HOOKS,
+        )
+        from dekk.skills.providers.base import AgentContext
+        from dekk.skills.providers.claude import GUARD_SCRIPT_NAME, ClaudeCodeAgent
+        from dekk.skills.providers.enrichment import compute_enrichment
+
+        (tmp_path / ".dekk.toml").write_text(
+            '[project]\nname = "demo"\n\n'
+            "[tools]\ncmake = {}\nmake = {}\n\n"
+            "[commands]\n"
+            'build = { run = "demo build", description = "Build" }\n',
+            encoding="utf-8",
+        )
+        env_spec = EnvironmentSpec(
+            project_name="demo",
+            project_description="",
+            tools={"cmake": {}, "make": {}},
+            commands={},
+            skills=SkillsSpec(version="0.1.0"),
+        )
+        enrichment = compute_enrichment(env_spec, cli_name="demo")
+
+        source = tmp_path / "demo-plugin"
+        source.mkdir()
+        ctx = AgentContext(
+            project_root=tmp_path,
+            source_dir=source,
+            source_dir_name="demo-plugin",
+            project_name="demo",
+            cli_name="demo",
+            project_content="# demo\n",
+            skills=[],
+            rules=[],
+            enrichment=enrichment,
+        )
+
+        ClaudeCodeAgent()._generate_enriched(ctx)
+
+        guard_path = source / CLAUDE_HOOKS_DIR / GUARD_SCRIPT_NAME
+        assert guard_path.is_file()
+        guard_body = guard_path.read_text(encoding="utf-8")
+        assert "command -v jq" in guard_body, "guard must degrade gracefully without jq"
+
+        settings = json.loads(
+            (tmp_path / CLAUDE_SETTINGS_DIR / CLAUDE_SETTINGS_JSON).read_text(
+                encoding="utf-8",
+            )
+        )
+        pre_tool = settings[SETTINGS_KEY_HOOKS]["PreToolUse"]
+        guard_cmd = pre_tool[0]["hooks"][0]["command"]
+        assert guard_cmd.startswith("$CLAUDE_PROJECT_DIR/"), guard_cmd
+        assert guard_cmd.endswith(
+            f"demo-plugin/{CLAUDE_HOOKS_DIR}/{GUARD_SCRIPT_NAME}"
+        )
+
+    def test_plugin_guard_hook_uses_CLAUDE_PLUGIN_ROOT(self, tmp_path: Path) -> None:
+        """The plugin hooks.json guard command must use ``${CLAUDE_PLUGIN_ROOT}``."""
+        import json
+
+        from dekk.environment.spec import EnvironmentSpec, SkillsSpec
+        from dekk.skills.constants import (
+            CLAUDE_HOOKS_DIR,
+            CLAUDE_HOOKS_JSON,
+            SETTINGS_KEY_HOOKS,
+        )
+        from dekk.skills.providers.base import AgentContext
+        from dekk.skills.providers.claude import GUARD_SCRIPT_NAME, ClaudeCodeAgent
+        from dekk.skills.providers.enrichment import compute_enrichment
+
+        env_spec = EnvironmentSpec(
+            project_name="demo",
+            project_description="",
+            tools={"cmake": {}, "make": {}},
+            commands={},
+            skills=SkillsSpec(version="0.1.0"),
+        )
+        enrichment = compute_enrichment(env_spec, cli_name="demo")
+
+        source = tmp_path / "demo-plugin"
+        source.mkdir()
+        ctx = AgentContext(
+            project_root=tmp_path,
+            source_dir=source,
+            source_dir_name="demo-plugin",
+            project_name="demo",
+            cli_name="demo",
+            project_content="# demo\n",
+            skills=[],
+            rules=[],
+            enrichment=enrichment,
+        )
+
+        ClaudeCodeAgent()._generate_enriched(ctx)
+
+        plugin_hooks = json.loads(
+            (source / CLAUDE_HOOKS_DIR / CLAUDE_HOOKS_JSON).read_text(encoding="utf-8")
+        )
+        pre_tool = plugin_hooks[SETTINGS_KEY_HOOKS]["PreToolUse"]
+        guard_cmd = pre_tool[0]["hooks"][0]["command"]
+        assert guard_cmd.startswith("${CLAUDE_PLUGIN_ROOT}/"), guard_cmd
+        assert guard_cmd.endswith(f"{CLAUDE_HOOKS_DIR}/{GUARD_SCRIPT_NAME}")
+
+    def test_detected_hooks_are_cwd_anchored_in_settings(self, tmp_path: Path) -> None:
+        """Formatter/doctor commands must run with project root as cwd."""
+        import json
+
+        from dekk.environment.spec import CommandSpec, EnvironmentSpec, SkillsSpec
+        from dekk.skills.constants import (
+            CLAUDE_SETTINGS_DIR,
+            CLAUDE_SETTINGS_JSON,
+            SETTINGS_KEY_HOOKS,
+        )
+        from dekk.skills.providers.base import AgentContext
+        from dekk.skills.providers.claude import ClaudeCodeAgent
+        from dekk.skills.providers.enrichment import compute_enrichment
+
+        env_spec = EnvironmentSpec(
+            project_name="demo",
+            project_description="",
+            tools={"clang-format": {}},
+            commands={
+                "doctor": CommandSpec(
+                    run="python tools/demo_cli.py doctor",
+                    description="Doctor",
+                ),
+            },
+            skills=SkillsSpec(version="0.1.0"),
+        )
+        enrichment = compute_enrichment(env_spec, cli_name=None)
+
+        source = tmp_path / "demo-plugin"
+        source.mkdir()
+        ctx = AgentContext(
+            project_root=tmp_path,
+            source_dir=source,
+            source_dir_name="demo-plugin",
+            project_name="demo",
+            cli_name=None,
+            project_content="# demo\n",
+            skills=[],
+            rules=[],
+            enrichment=enrichment,
+        )
+
+        ClaudeCodeAgent()._generate_enriched(ctx)
+
+        settings = json.loads(
+            (tmp_path / CLAUDE_SETTINGS_DIR / CLAUDE_SETTINGS_JSON).read_text(
+                encoding="utf-8",
+            )
+        )
+        for event_hooks in settings[SETTINGS_KEY_HOOKS].values():
+            for entry in event_hooks:
+                for hook in entry["hooks"]:
+                    cmd = hook["command"]
+                    assert cmd.startswith(
+                        ('cd "$CLAUDE_PROJECT_DIR" && ', "$CLAUDE_PROJECT_DIR/")
+                    ), f"unanchored hook command: {cmd}"
+
+
 class TestEndToEnd:
     def test_full_pipeline(self, tmp_path: Path) -> None:
         """Test the full init -> generate pipeline."""

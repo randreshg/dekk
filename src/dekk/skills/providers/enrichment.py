@@ -138,13 +138,22 @@ def detect_hooks(
     """Auto-detect hooks from tools and commands analysis."""
     hooks: list[HookDef] = []
 
-    # Formatter hook: auto-format on file write/edit
+    # Formatter hook: auto-format on file write/edit.
+    #
+    # Claude Code hooks receive the tool payload as JSON on stdin; the edited
+    # file lives under ``.tool_input.file_path`` (Write/Edit).  Parse with jq
+    # and skip the formatter call when the path is absent — this also makes
+    # the hook safe for tools that don't carry a ``file_path`` field.
     fmt_name, fmt_extensions = detect_formatter(tools)
     if fmt_name:
+        format_cmd = (
+            "f=$(jq -r '.tool_input.file_path // empty') && "
+            f'[ -n "$f" ] && {fmt_name} -i "$f" || true'
+        )
         hooks.append(HookDef(
             event="PostToolUse",
             matcher="Write|Edit",
-            command=f"{fmt_name} -i $FILEPATH",
+            command=format_cmd,
             description=f"Auto-format with {fmt_name}",
         ))
 
