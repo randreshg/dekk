@@ -158,11 +158,7 @@ def load_plugins(*, force: bool = False) -> dict[str, Any]:
     from importlib.metadata import entry_points
 
     plugins: dict[str, Any] = {}
-    try:
-        eps = entry_points(group=PLUGIN_ENTRY_POINT_GROUP)
-    except TypeError:
-        # Python <3.10 backport returns a SelectableGroups mapping
-        eps = entry_points().get(PLUGIN_ENTRY_POINT_GROUP, [])  # type: ignore[attr-defined]
+    eps = entry_points(group=PLUGIN_ENTRY_POINT_GROUP)
 
     for ep in eps:
         if ep.name in REGISTRY:
