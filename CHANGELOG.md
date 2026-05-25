@@ -2,6 +2,18 @@
 
 All notable changes to `dekk` will be documented in this file.
 
+## 1.11.0 - 2026-05-25
+
+- Added `dekk.plugins` entry-point group. Third-party packages can now
+  expose a top-level `dekk <name>` command by declaring a Typer app under
+  `[project.entry-points."dekk.plugins"]`. The CLI consults the plugin
+  registry in `dekk/cli/main.py` before falling back to `.dekk.toml`
+  project resolution, so `dekk <name>` resolves from anywhere on the
+  system without a project context. Built-in `REGISTRY` entries always
+  shadow plugins; plugins that fail to import are skipped silently to
+  keep the CLI usable. New public surface: `dekk.tools.load_plugins`
+  and `dekk.tools.PLUGIN_ENTRY_POINT_GROUP`.
+
 ## 1.10.10 - 2026-05-18
 
 - Added `docs/real-world-examples.md`: an annotated, section-by-section

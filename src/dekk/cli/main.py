@@ -263,6 +263,18 @@ def main() -> None:
                 and first not in BUILTIN_COMMANDS
                 and not first.endswith(PYTHON_SCRIPT_SUFFIX)
             ):
+                # Entry-point plugins win over .dekk.toml project lookup;
+                # they let third-party packages expose `dekk <name>` from
+                # anywhere on the system without a project context.
+                from dekk.tools import load_plugins
+
+                plugins = load_plugins()
+                if first in plugins:
+                    plugin_app = plugins[first]
+                    # Rewrite argv so the plugin sees its own name as argv[0].
+                    sys.argv = [f"dekk {first}", *sys.argv[2:]]
+                    raise SystemExit(plugin_app() or 0)
+
                 from dekk.project.runner import run_project_command
 
                 raise SystemExit(run_project_command(first, sys.argv[2:]))

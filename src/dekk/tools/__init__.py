@@ -8,6 +8,18 @@ Each tool lives in its own package under ``dekk.tools``:
 Downstream CLIs (e.g., apxm) can register additional tools by adding
 entries to :data:`REGISTRY` before CLI construction.
 
+External plugins can also register at install time by declaring a
+``dekk.plugins`` entry point in their ``pyproject.toml``::
+
+    [project.entry-points."dekk.plugins"]
+    myplugin = "myplugin.cli:app"
+
+Each entry point must expose a ``typer.Typer`` instance.  :func:`load_plugins`
+discovers and caches them lazily; the project runner consults the plugin
+registry before falling back to ``.dekk.toml`` project resolution, so
+``dekk myplugin <cmd>`` resolves anywhere on the system without needing a
+project context.
+
 Usage from the project runner::
 
     from dekk.tools import REGISTRY, create_tool_app
@@ -106,11 +118,72 @@ def create_tool_app(name: str, project_root: Path) -> Any:
     return factory()
 
 
+# ---------------------------------------------------------------------------
+# Entry-point plugin discovery
+#
+# Third-party packages can register a top-level ``dekk <name>`` command by
+# declaring a ``dekk.plugins`` entry point that resolves to a Typer app:
+#
+#     [project.entry-points."dekk.plugins"]
+#     myplugin = "myplugin.cli:app"
+#
+# The project runner consults :func:`load_plugins` before falling back to
+# ``.dekk.toml`` project resolution.  Discovery happens once per process
+# and is cached in module state.
+# ---------------------------------------------------------------------------
+
+PLUGIN_ENTRY_POINT_GROUP: Final = "dekk.plugins"
+
+_plugin_cache: dict[str, Any] | None = None
+
+
+def load_plugins(*, force: bool = False) -> dict[str, Any]:
+    """Discover and return all ``dekk.plugins`` entry-point apps.
+
+    Each value is the loaded entry-point target (expected to be a
+    ``typer.Typer`` instance).  Plugins that fail to import are skipped;
+    failures are silently swallowed to avoid breaking the CLI when a
+    third-party package is partially installed.
+
+    Args:
+        force: If True, ignore the module-level cache and re-scan.
+
+    Returns:
+        Mapping from plugin name to its Typer app.
+    """
+    global _plugin_cache
+    if _plugin_cache is not None and not force:
+        return _plugin_cache
+
+    from importlib.metadata import entry_points
+
+    plugins: dict[str, Any] = {}
+    try:
+        eps = entry_points(group=PLUGIN_ENTRY_POINT_GROUP)
+    except TypeError:
+        # Python <3.10 backport returns a SelectableGroups mapping
+        eps = entry_points().get(PLUGIN_ENTRY_POINT_GROUP, [])  # type: ignore[attr-defined]
+
+    for ep in eps:
+        if ep.name in REGISTRY:
+            # Built-in REGISTRY entries always win over plugins
+            continue
+        try:
+            plugins[ep.name] = ep.load()
+        except Exception:
+            # Skip plugins that fail to import; keep CLI usable.
+            continue
+
+    _plugin_cache = plugins
+    return plugins
+
+
 __all__ = [
     "CLI_NAME",
     "DOCTOR",
     "INSTALL",
     "NAMES",
+    "PLUGIN_ENTRY_POINT_GROUP",
     "PROJECT_BUILTIN_DESCRIPTIONS",
     "REGISTRY",
     "SETUP",
@@ -118,4 +191,5 @@ __all__ = [
     "UNINSTALL",
     "WORKTREE",
     "create_tool_app",
+    "load_plugins",
 ]
