@@ -2,6 +2,12 @@
 
 All notable changes to `dekk` will be documented in this file.
 
+## 1.11.1 - 2026-05-25
+
+- Fixed mypy failure on the v1.11.0 plugin loader by removing a dead
+  Python<3.10 `entry_points` fallback branch (project requires
+  `python>=3.10`). No behavior change.
+
 ## 1.11.0 - 2026-05-25
 
 - Added `dekk.plugins` entry-point group. Third-party packages can now
