@@ -295,14 +295,13 @@ def main() -> None:
         print_info(FILESYSTEM_RETRY_HINT)
         raise SystemExit(int(ExitCodes.RUNTIME_ERROR)) from exc
     except Exception as exc:
-        from click.exceptions import (
-            Exit as ClickExit,  # type: ignore[import-not-found, unused-ignore]
-        )
-
         from dekk.cli.errors import DekkError
         from dekk.cli.styles import print_error, print_info
 
-        if isinstance(exc, ClickExit):
+        if (
+            exc.__class__.__module__ == "click.exceptions"
+            and exc.__class__.__name__ == "Exit"
+        ):
             raise
         if isinstance(exc, DekkError):
             print_error(exc.message)

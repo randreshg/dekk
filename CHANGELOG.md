@@ -2,6 +2,11 @@
 
 All notable changes to `dekk` will be documented in this file.
 
+## 1.11.4 - 2026-05-26
+
+- Removed the `click.exceptions` import from the CLI exception path so CI
+  mypy does not depend on Click submodule stubs.
+
 ## 1.11.3 - 2026-05-26
 
 - Fixed CI mypy on Python 3.11 by marking Click's runtime-only
