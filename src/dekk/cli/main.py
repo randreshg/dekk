@@ -295,7 +295,9 @@ def main() -> None:
         print_info(FILESYSTEM_RETRY_HINT)
         raise SystemExit(int(ExitCodes.RUNTIME_ERROR)) from exc
     except Exception as exc:
-        from click.exceptions import Exit as ClickExit
+        from click.exceptions import (
+            Exit as ClickExit,  # type: ignore[import-not-found, unused-ignore]
+        )
 
         from dekk.cli.errors import DekkError
         from dekk.cli.styles import print_error, print_info

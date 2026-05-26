@@ -2,6 +2,11 @@
 
 All notable changes to `dekk` will be documented in this file.
 
+## 1.11.3 - 2026-05-26
+
+- Fixed CI mypy on Python 3.11 by marking Click's runtime-only
+  `click.exceptions.Exit` import as intentionally untyped.
+
 ## 1.11.2 - 2026-05-26
 
 - Fixed generated skill indexes to use the installed skill directory name
