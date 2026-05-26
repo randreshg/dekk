@@ -407,23 +407,23 @@ class ClaudeCodeAgent(DekkAgent):
 
             skill_path() {
               case "$1" in
-                carts-check-utils) printf '%s/check-utils/SKILL.md' "$SKILL_ROOT" ;;
+                check-utils) printf '%s/check-utils/SKILL.md' "$SKILL_ROOT" ;;
                 carts-dialect-map) printf '%s/carts-dialect-map/SKILL.md' "$SKILL_ROOT" ;;
                 carts-attr-consolidation)
                   printf '%s/carts-attr-consolidation/SKILL.md' "$SKILL_ROOT" ;;
                 carts-find-utils) printf '%s/carts-find-utils/SKILL.md' "$SKILL_ROOT" ;;
-                carts-refactor-utils) printf '%s/refactor-utils/SKILL.md' "$SKILL_ROOT" ;;
+                refactor-utils) printf '%s/refactor-utils/SKILL.md' "$SKILL_ROOT" ;;
                 carts-include-tier) printf '%s/carts-include-tier/SKILL.md' "$SKILL_ROOT" ;;
-                carts-pass-dev) printf '%s/pass-dev/SKILL.md' "$SKILL_ROOT" ;;
+                pass-dev) printf '%s/pass-dev/SKILL.md' "$SKILL_ROOT" ;;
                 carts-pipeline-map) printf '%s/carts-pipeline-map/SKILL.md' "$SKILL_ROOT" ;;
-                carts-test) printf '%s/test/SKILL.md' "$SKILL_ROOT" ;;
-                carts-create-test) printf '%s/create-test/SKILL.md' "$SKILL_ROOT" ;;
-                carts-debug) printf '%s/debug/SKILL.md' "$SKILL_ROOT" ;;
-                carts-miscompile-triage) printf '%s/miscompile-triage/SKILL.md' "$SKILL_ROOT" ;;
-                carts-reproducer) printf '%s/reproducer/SKILL.md' "$SKILL_ROOT" ;;
-                carts-runtime-first) printf '%s/runtime-first/SKILL.md' "$SKILL_ROOT" ;;
-                carts-runtime-triage) printf '%s/runtime-triage/SKILL.md' "$SKILL_ROOT" ;;
-                carts-distributed-triage) printf '%s/distributed-triage/SKILL.md' "$SKILL_ROOT" ;;
+                test) printf '%s/test/SKILL.md' "$SKILL_ROOT" ;;
+                create-test) printf '%s/create-test/SKILL.md' "$SKILL_ROOT" ;;
+                debug) printf '%s/debug/SKILL.md' "$SKILL_ROOT" ;;
+                miscompile-triage) printf '%s/miscompile-triage/SKILL.md' "$SKILL_ROOT" ;;
+                reproducer) printf '%s/reproducer/SKILL.md' "$SKILL_ROOT" ;;
+                runtime-first) printf '%s/runtime-first/SKILL.md' "$SKILL_ROOT" ;;
+                runtime-triage) printf '%s/runtime-triage/SKILL.md' "$SKILL_ROOT" ;;
+                distributed-triage) printf '%s/distributed-triage/SKILL.md' "$SKILL_ROOT" ;;
                 carts-simplify) printf '%s/carts-simplify/SKILL.md' "$SKILL_ROOT" ;;
                 carts-review) printf '%s/carts-review/SKILL.md' "$SKILL_ROOT" ;;
                 carts-commit) printf '%s/carts-commit/SKILL.md' "$SKILL_ROOT" ;;
@@ -454,7 +454,7 @@ class ClaudeCodeAgent(DekkAgent):
               printf '%s' "$HAYSTACK" | grep -Eq "$1"
             }
 
-            add_skill carts-check-utils "utility/helper placement before CARTS source edits"
+            add_skill check-utils "utility/helper placement before CARTS source edits"
             add_skill carts-dialect-map "SDE/CODIR/ARTS/ARTS-RT ownership boundaries"
 
             if matches 'attr|attribute|attrnames|tablegen|\\.td|ods|getattr|setattr'; then
@@ -465,10 +465,10 @@ class ClaudeCodeAgent(DekkAgent):
 
             if matches 'helper|util|utility|duplicate|dedup|refactor'; then
               add_skill carts-find-utils "existing helper discovery before adding utilities"
-              add_skill carts-refactor-utils "duplicate helper consolidation workflow"
+              add_skill refactor-utils "duplicate helper consolidation workflow"
             elif matches 'static function|common helper'; then
               add_skill carts-find-utils "existing helper discovery before adding utilities"
-              add_skill carts-refactor-utils "duplicate helper consolidation workflow"
+              add_skill refactor-utils "duplicate helper consolidation workflow"
             fi
 
             if matches 'include/carts|header|internal\\.h|utils\\.h|include tier|lib header'; then
@@ -476,28 +476,28 @@ class ClaudeCodeAgent(DekkAgent):
             fi
 
             if matches 'pass|transform|conversion|lowering|materializ'; then
-              add_skill carts-pass-dev "pass and transform implementation conventions"
+              add_skill pass-dev "pass and transform implementation conventions"
               add_skill carts-pipeline-map "pipeline stage ownership and token map"
             elif matches 'canonicaliz|pipeline|tools/compile'; then
-              add_skill carts-pass-dev "pass and transform implementation conventions"
+              add_skill pass-dev "pass and transform implementation conventions"
               add_skill carts-pipeline-map "pipeline stage ownership and token map"
             fi
 
             if matches 'test|lit|regression|e2e|verify|check|fixture'; then
-              add_skill carts-test "focused CARTS verification commands"
-              add_skill carts-create-test "new regression fixture workflow"
+              add_skill test "focused CARTS verification commands"
+              add_skill create-test "new regression fixture workflow"
             fi
 
             if matches 'debug|crash|fail|miscompile|wrong code|reproducer|reduce'; then
-              add_skill carts-debug "compiler debugging workflow"
-              add_skill carts-miscompile-triage "wrong-code triage"
-              add_skill carts-reproducer "reduced testcase workflow"
+              add_skill debug "compiler debugging workflow"
+              add_skill miscompile-triage "wrong-code triage"
+              add_skill reproducer "reduced testcase workflow"
             fi
 
             if matches 'runtime|arts_rt|arts-rt|abi|edt|db|distributed|rdma|multinode'; then
-              add_skill carts-runtime-first "runtime/compiler contract checks"
-              add_skill carts-runtime-triage "runtime failure triage"
-              add_skill carts-distributed-triage "distributed execution triage"
+              add_skill runtime-first "runtime/compiler contract checks"
+              add_skill runtime-triage "runtime failure triage"
+              add_skill distributed-triage "distributed execution triage"
             fi
 
             if matches 'commit|before commit|review|simplify'; then
@@ -506,7 +506,7 @@ class ClaudeCodeAgent(DekkAgent):
               add_skill carts-commit "commit readiness workflow"
             fi
 
-            add_skill carts-pass-dev "default compiler-transform workflow"
+            add_skill pass-dev "default compiler-transform workflow"
 
             printf 'CARTS source prompt detected. Consult relevant skills before editing:\\n'
             for i in "${!SKILLS[@]}"; do

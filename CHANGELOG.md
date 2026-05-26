@@ -2,6 +2,12 @@
 
 All notable changes to `dekk` will be documented in this file.
 
+## 1.11.5 - 2026-05-26
+
+- Fixed CARTS prompt skill suggestion hooks to emit installed skill lookup
+  names such as `check-utils`, `refactor-utils`, and `pass-dev`, matching the
+  generated skills inventory and `.claude/skills/skills_index.md`.
+
 ## 1.11.4 - 2026-05-26
 
 - Removed the `click.exceptions` import from the CLI exception path so CI
