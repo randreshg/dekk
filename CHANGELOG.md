@@ -2,6 +2,17 @@
 
 All notable changes to `dekk` will be documented in this file.
 
+## 1.11.2 - 2026-05-26
+
+- Fixed generated skill indexes to use the installed skill directory name
+  instead of frontmatter aliases, so project skill lookup names match the
+  generated `.claude/skills/` tree.
+- Added bounded cross-runtime skill inventories to generated `AGENTS.md`,
+  `CLAUDE.md`, `.cursorrules`, and `CODEX.md`, plus doctor-time stale
+  inventory validation.
+- Added CARTS prompt skill suggestion hook generation and kept enriched MCP
+  tool commands on project CLI entrypoints such as `dekk carts ...`.
+
 ## 1.11.1 - 2026-05-25
 
 - Fixed mypy failure on the v1.11.0 plugin loader by removing a dead

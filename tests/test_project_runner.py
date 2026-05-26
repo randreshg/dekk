@@ -424,6 +424,93 @@ def test_skill_hint_uses_configured_agents_source(
     assert f"carts-plugin/{SKILLS_DIR_NAME}/hello/{SKILL_FILENAME}" in out
 
 
+def test_configured_doctor_runs_skill_inventory_check(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A project-defined doctor command should still run dekk inventory validation."""
+    from dekk.skills.generators import AgentConfigManager
+
+    spec = tmp_path / ".dekk.toml"
+    spec.write_text(
+        "[project]\n"
+        'name = "demo"\n\n'
+        "[agents]\n"
+        f'source = "{DEFAULT_SOURCE_DIR}"\n\n'
+        "[commands]\n"
+        'doctor = { run = "true", description = "Doctor" }\n',
+        encoding="utf-8",
+    )
+    source = tmp_path / DEFAULT_SOURCE_DIR
+    skill_dir = source / SKILLS_DIR_NAME / "build"
+    skill_dir.mkdir(parents=True)
+    (source / PROJECT_MD).write_text("# Demo\n", encoding="utf-8")
+    (skill_dir / SKILL_FILENAME).write_text(
+        "---\nname: build\ndescription: Build the project\n---\n\n# Build\n",
+        encoding="utf-8",
+    )
+    AgentConfigManager(tmp_path).generate("all")
+    monkeypatch.chdir(tmp_path)
+
+    with patch("subprocess.run") as run_mock:
+        run_mock.return_value.returncode = 0
+        with patch("dekk.project.runner.EnvironmentActivator.activate") as activate_mock:
+            activate_mock.return_value.env_vars = {}
+            code = run_project_command("demo", ["doctor"])
+
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "Agent Skill Inventory" in out
+    assert "Generated skill inventories are current" in out
+
+
+def test_configured_doctor_fails_on_stale_skill_inventory(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    from dekk.skills.constants import SKILLS_INVENTORY_BEGIN
+    from dekk.skills.generators import AgentConfigManager
+
+    spec = tmp_path / ".dekk.toml"
+    spec.write_text(
+        "[project]\n"
+        'name = "demo"\n\n'
+        "[agents]\n"
+        f'source = "{DEFAULT_SOURCE_DIR}"\n\n'
+        "[commands]\n"
+        'doctor = { run = "true", description = "Doctor" }\n',
+        encoding="utf-8",
+    )
+    source = tmp_path / DEFAULT_SOURCE_DIR
+    skill_dir = source / SKILLS_DIR_NAME / "build"
+    skill_dir.mkdir(parents=True)
+    (source / PROJECT_MD).write_text("# Demo\n", encoding="utf-8")
+    (skill_dir / SKILL_FILENAME).write_text(
+        "---\nname: build\ndescription: Build the project\n---\n\n# Build\n",
+        encoding="utf-8",
+    )
+    AgentConfigManager(tmp_path).generate("all")
+    agents_md = tmp_path / "AGENTS.md"
+    agents_md.write_text(
+        agents_md.read_text(encoding="utf-8").replace(
+            SKILLS_INVENTORY_BEGIN,
+            "<!-- BEGIN SKILLS INVENTORY BROKEN -->",
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    with patch("subprocess.run") as run_mock:
+        run_mock.return_value.returncode = 0
+        with patch("dekk.project.runner.EnvironmentActivator.activate") as activate_mock:
+            activate_mock.return_value.env_vars = {}
+            code = run_project_command("demo", ["doctor"])
+
+    assert code == 1
+    captured = capsys.readouterr()
+    assert "Stale or missing generated skill inventory: AGENTS.md" in (
+        captured.out + captured.err
+    )
+
+
 # -- Hierarchical commands + groups -----------------------------------------
 
 

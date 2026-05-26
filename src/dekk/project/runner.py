@@ -231,6 +231,11 @@ def run_project_command(app_name: str, argv: list[str]) -> int:
             ),
         )
 
+    if result.returncode == 0 and cmd_path == [PROJECT_DOCTOR_COMMAND]:
+        inventory_result = _check_skill_inventory(spec, project_root)
+        if inventory_result != 0:
+            return inventory_result
+
     if result.returncode == 0:
         # Show skill hint for the leaf command name
         leaf_name = cmd_path[-1] if cmd_path else command_name
@@ -256,6 +261,39 @@ def run_project_command(app_name: str, argv: list[str]) -> int:
             )
 
     return int(result.returncode)
+
+
+def _check_skill_inventory(spec: EnvironmentSpec, project_root: Path) -> int:
+    """Validate generated agent skill inventories for projects with skills."""
+    if not spec.skills:
+        return 0
+
+    from dekk.cli.styles import print_error, print_section, print_success
+    from dekk.skills.discovery import discover_skills
+    from dekk.skills.generators import stale_skill_inventory_files
+
+    print_section("Agent Skill Inventory")
+    try:
+        source_dir = project_root / spec.skills.source
+        skills = discover_skills(source_dir)
+        stale = stale_skill_inventory_files(
+            project_root,
+            spec.skills.source,
+            skills,
+        )
+    except Exception as exc:
+        print_error(f"Could not validate skill inventory: {exc}")
+        return 1
+
+    if stale:
+        print_error(
+            "Stale or missing generated skill inventory: "
+            + ", ".join(stale)
+        )
+        return 1
+
+    print_success("Generated skill inventories are current")
+    return 0
 
 
 # ---------------------------------------------------------------------------
@@ -558,6 +596,8 @@ def _run_project_doctor(args: list[str], project_root: Path) -> int:
                     has_issues = True
                 else:
                     print_success(f"{comp.label}: all requirements met")
+
+    has_issues = _check_skill_inventory(spec, project_root) != 0 or has_issues
 
     print_blank()
     if has_issues:

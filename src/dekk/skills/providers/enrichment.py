@@ -96,6 +96,7 @@ def _flatten_commands(
 def detect_mcp_tools(
     commands: dict[str, CommandSpec],
     project_name: str,
+    cli_name: str | None = None,
 ) -> list[McpToolDef]:
     """Extract MCP tool definitions from ``[commands]`` entries with ``skill=true``."""
     tools: list[McpToolDef] = []
@@ -103,11 +104,12 @@ def detect_mcp_tools(
         if not spec.skill or not spec.run:
             continue
         tool_name = f"{project_name}_{name.replace('.', '_').replace('-', '_')}"
+        run = f"{cli_name} {name.replace('.', ' ')}" if cli_name else spec.run
         tools.append(McpToolDef(
             name=tool_name,
             command_name=name,
             description=spec.description or f"Run {name}",
-            run=spec.run,
+            run=run,
         ))
     return tools
 
@@ -243,7 +245,7 @@ def compute_enrichment(
     cli_name: str | None = None,
 ) -> EnrichmentData:
     """Compute all enrichment data from an ``EnvironmentSpec``."""
-    mcp_tools = detect_mcp_tools(env_spec.commands, env_spec.project_name)
+    mcp_tools = detect_mcp_tools(env_spec.commands, env_spec.project_name, cli_name)
     fmt_name, fmt_extensions = detect_formatter(env_spec.tools)
     hooks = detect_hooks(env_spec.tools, env_spec.commands, cli_name)
     blocked = detect_blocked_commands(env_spec.tools, env_spec.commands, cli_name)

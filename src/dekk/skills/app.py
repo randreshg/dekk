@@ -184,6 +184,8 @@ def create_agents_app(
             cli_name = getattr(parent_app, "_name", None)
 
         effective_source, agents_spec, env_spec = _resolve_agents_source(project_root)
+        if cli_name is None and env_spec is not None:
+            cli_name = f"dekk {env_spec.project_name}"
 
         manager = AgentConfigManager(
             project_root=project_root,

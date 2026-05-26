@@ -26,8 +26,19 @@ class CursorAgent(DekkAgent):
     target = TARGET_CURSOR
 
     def generate(self, context: AgentContext) -> list[str]:
+        from dekk.skills.generators import (
+            render_skills_inventory,
+            update_skills_inventory_section,
+        )
+
         cursor_path = context.project_root / CURSORRULES
-        cursor_path.write_text(context.project_content, encoding="utf-8")
+        cursor_path.write_text(
+            update_skills_inventory_section(
+                context.project_content,
+                render_skills_inventory(context.skills, context.source_dir_name),
+            ),
+            encoding="utf-8",
+        )
         results = [CURSORRULES]
 
         if context.enrichment and context.enrichment.mcp_tools:

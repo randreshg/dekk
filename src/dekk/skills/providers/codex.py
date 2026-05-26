@@ -8,6 +8,7 @@ from dekk.skills.constants import (
     CLAUDE_MCP_DIR,
     CODEX_AGENT_YAML,
     CODEX_AGENTS_DIR,
+    CODEX_MD,
     MCP_COMMAND,
     MCP_KEY_COMMAND,
     MCP_SERVER_SUFFIX,
@@ -41,15 +42,43 @@ class CodexAgent(DekkAgent):
     target = TARGET_CODEX
 
     def generate(self, context: AgentContext) -> list[str]:
+        from dekk.skills.generators import (
+            render_skills_inventory,
+            update_skills_inventory_section,
+        )
+
         agents_ref = context.source_dir / AGENTS_REFERENCE_MD
         content = (
             agents_ref.read_text(encoding="utf-8")
             if agents_ref.is_file()
             else context.project_content
         )
+        inventory = render_skills_inventory(context.skills, context.source_dir_name)
         agents_md = context.project_root / AGENTS_MD
-        agents_md.write_text(content, encoding="utf-8")
-        results = [AGENTS_MD]
+        agents_md.write_text(
+            update_skills_inventory_section(content, inventory),
+            encoding="utf-8",
+        )
+
+        codex_path = context.project_root / CODEX_MD
+        codex_content = (
+            codex_path.read_text(encoding="utf-8")
+            if codex_path.is_file()
+            else content
+        )
+        codex_inventory = render_skills_inventory(
+            context.skills,
+            context.source_dir_name,
+            preamble=(
+                "Before editing CARTS sources, scan the Skills inventory below "
+                "and read the SKILL.md for any whose description matches your task."
+            ),
+        )
+        codex_path.write_text(
+            update_skills_inventory_section(codex_content, codex_inventory),
+            encoding="utf-8",
+        )
+        results = [AGENTS_MD, CODEX_MD]
 
         if context.enrichment and context.enrichment.mcp_tools:
             results.extend(self._generate_agent_yaml(context))

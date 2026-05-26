@@ -27,6 +27,8 @@ from dekk.skills.constants import (
     CURSORRULES,
     DEFAULT_SOURCE_DIR,
     PROJECT_MD,
+    SKILLS_INVENTORY_BEGIN,
+    SKILLS_INVENTORY_END,
     TARGET_ALL,
     TARGET_CLAUDE,
     TARGET_CODEX,
@@ -48,6 +50,92 @@ from dekk.skills.providers.shared import remove_file
 
 _BUILTIN_TARGETS: frozenset[str] = frozenset({TARGET_ALL, *ALL_TARGETS})
 
+_INVENTORY_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        "Session lifecycle",
+        (
+            "carts-session-start",
+            "carts-commit",
+            "carts-review",
+            "carts-simplify",
+            "carts-finishing",
+        ),
+    ),
+    (
+        "Discovery + placement",
+        (
+            "carts-find-utils",
+            "check-utils",
+            "refactor-utils",
+            "carts-include-tier",
+            "carts-attr-consolidation",
+            "carts-dialect-map",
+            "carts-pipeline-map",
+        ),
+    ),
+    (
+        "Building + running",
+        (
+            "build",
+            "carts-cli",
+            "test",
+            "create-test",
+            "contract-refresh",
+            "carts-local-examples",
+            "carts-multinode-examples",
+            "benchmark",
+        ),
+    ),
+    (
+        "Triage",
+        (
+            "carts-debug",
+            "debug",
+            "analysis-triage",
+            "miscompile-triage",
+            "runtime-triage",
+            "distributed-triage",
+            "benchmark-triage",
+            "heuristic-explain",
+            "reproducer",
+            "stage-diff",
+            "dialect-trace",
+            "runtime-first",
+        ),
+    ),
+    (
+        "Authoring + maintenance",
+        (
+            "pass-dev",
+            "carts-agentic-development",
+            "carts-skill-maintenance",
+        ),
+    ),
+)
+
+
+def _skill_lookup_name(skill: SkillDefinition) -> str:
+    """Return the stable generated lookup name for a skill.
+
+    Claude Code installs skills by directory.  Some historical CARTS skills
+    have frontmatter names with a ``carts-`` prefix even though their generated
+    directory is bare (for example ``analysis-triage``), so generated lookup
+    surfaces must use the install path, not the frontmatter alias.
+    """
+    return skill.relative_install_path.as_posix()
+
+
+def _skill_sort_key(skill: SkillDefinition) -> tuple[str, str]:
+    return (_skill_lookup_name(skill), skill.name)
+
+
+def _escape_table_cell(value: str) -> str:
+    return " ".join(value.split()).replace("|", "\\|")
+
+
+def _skill_path(skill: SkillDefinition, source_dir_name: str) -> str:
+    return f"{source_dir_name}/skills/{skill.relative_install_path.as_posix()}/SKILL.md"
+
 
 def render_skills_index(skills: list[SkillDefinition]) -> str:
     """Render ``skills_index.md`` content from discovered skills.
@@ -56,11 +144,130 @@ def render_skills_index(skills: list[SkillDefinition]) -> str:
     skill before loading full SKILL.md instructions.
     """
     lines = ["## Available Skills", ""]
-    for skill in skills:
-        lines.append(f"### {skill.name}")
+    for skill in sorted(skills, key=_skill_sort_key):
+        lines.append(f"### {_skill_lookup_name(skill)}")
         lines.append(f"Use when: {skill.description.rstrip('.')}.")
         lines.append("")
     return "\n".join(lines)
+
+
+def render_skills_inventory(
+    skills: list[SkillDefinition],
+    source_dir_name: str,
+    preamble: str | None = None,
+) -> str:
+    """Render the deterministic cross-runtime skill inventory section."""
+    by_lookup = {_skill_lookup_name(skill): skill for skill in skills}
+    by_frontmatter = {skill.name: skill for skill in skills}
+    emitted: set[str] = set()
+
+    lines = [
+        SKILLS_INVENTORY_BEGIN,
+        "## Available Skills",
+        "",
+    ]
+    if preamble:
+        lines.extend([preamble, ""])
+
+    for title, names in _INVENTORY_GROUPS:
+        grouped: list[SkillDefinition] = []
+        for name in names:
+            skill = by_lookup.get(name) or by_frontmatter.get(name)
+            lookup_name = _skill_lookup_name(skill) if skill else ""
+            if skill and lookup_name not in emitted:
+                grouped.append(skill)
+                emitted.add(lookup_name)
+        if not grouped:
+            continue
+        lines.extend([
+            f"### {title}",
+            "",
+            "| Skill | Description | Path |",
+            "| --- | --- | --- |",
+        ])
+        for skill in grouped:
+            lines.append(
+                "| "
+                f"`{_escape_table_cell(_skill_lookup_name(skill))}` | "
+                f"{_escape_table_cell(skill.description.rstrip('.'))}. | "
+                f"`{_escape_table_cell(_skill_path(skill, source_dir_name))}` |"
+            )
+        lines.append("")
+
+    remaining = [
+        skill
+        for skill in sorted(skills, key=_skill_sort_key)
+        if _skill_lookup_name(skill) not in emitted
+    ]
+    if remaining:
+        lines.extend([
+            "### Other",
+            "",
+            "| Skill | Description | Path |",
+            "| --- | --- | --- |",
+        ])
+        for skill in remaining:
+            lines.append(
+                "| "
+                f"`{_escape_table_cell(_skill_lookup_name(skill))}` | "
+                f"{_escape_table_cell(skill.description.rstrip('.'))}. | "
+                f"`{_escape_table_cell(_skill_path(skill, source_dir_name))}` |"
+            )
+        lines.append("")
+
+    lines.append(SKILLS_INVENTORY_END)
+    lines.append("")
+    return "\n".join(lines)
+
+
+def update_skills_inventory_section(content: str, inventory: str) -> str:
+    """Insert or replace the bounded skills inventory in ``content``."""
+    start = content.find(SKILLS_INVENTORY_BEGIN)
+    end = content.find(SKILLS_INVENTORY_END)
+    if start != -1 and end != -1 and end > start:
+        end += len(SKILLS_INVENTORY_END)
+        updated = content[:start].rstrip() + "\n\n" + inventory.rstrip() + content[end:].rstrip()
+        return updated.rstrip() + "\n"
+    return content.rstrip() + "\n\n" + inventory
+
+
+def stale_skill_inventory_files(
+    project_root: Path,
+    source_dir_name: str,
+    skills: list[SkillDefinition],
+) -> list[str]:
+    """Return generated instruction files with missing or stale inventories."""
+    from dekk.skills.constants import CODEX_MD
+
+    expected = {
+        AGENTS_MD: render_skills_inventory(skills, source_dir_name),
+        CLAUDE_MD: render_skills_inventory(skills, source_dir_name),
+        CURSORRULES: render_skills_inventory(skills, source_dir_name),
+        CODEX_MD: render_skills_inventory(
+            skills,
+            source_dir_name,
+            preamble=(
+                "Before editing CARTS sources, scan the Skills inventory below "
+                "and read the SKILL.md for any whose description matches your task."
+            ),
+        ),
+    }
+    stale: list[str] = []
+    for label, inventory in expected.items():
+        path = project_root / label
+        if not path.is_file():
+            stale.append(label)
+            continue
+        content = path.read_text(encoding="utf-8")
+        start = content.find(SKILLS_INVENTORY_BEGIN)
+        end = content.find(SKILLS_INVENTORY_END)
+        if start == -1 or end == -1 or end <= start:
+            stale.append(label)
+            continue
+        actual = content[start:end + len(SKILLS_INVENTORY_END)].strip()
+        if actual != inventory.strip():
+            stale.append(label)
+    return stale
 
 _TARGET_CONFIGS: dict[str, dict[str, str]] = {
     TARGET_CLAUDE: {

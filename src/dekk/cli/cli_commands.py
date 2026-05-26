@@ -24,6 +24,8 @@ def run_doctor(context: ExecutionContext) -> None:
     Args:
         context: Captured execution context.
     """
+    has_issues = False
+
     # Platform
     print_section("Platform Information")
     plat = context.platform
@@ -88,6 +90,36 @@ def run_doctor(context: ExecutionContext) -> None:
         if spec.tools:
             print_section(f"Tool Dependencies ({spec.project_name})")
             check_tool_specs(spec.tools)
+
+        if spec.skills:
+            from dekk.cli.styles import print_error, print_success
+            from dekk.skills.discovery import discover_skills
+            from dekk.skills.generators import stale_skill_inventory_files
+
+            print_section("Agent Skill Inventory")
+            try:
+                project_root = spec_file.parent
+                skills = discover_skills(project_root / spec.skills.source)
+                stale = stale_skill_inventory_files(
+                    project_root,
+                    spec.skills.source,
+                    skills,
+                )
+            except Exception as exc:
+                print_error(f"Could not validate skill inventory: {exc}")
+                has_issues = True
+            else:
+                if stale:
+                    print_error(
+                        "Stale or missing generated skill inventory: "
+                        + ", ".join(stale)
+                    )
+                    has_issues = True
+                else:
+                    print_success("Generated skill inventories are current")
+
+    if has_issues:
+        raise SystemExit(1)
 
 
 def run_version(

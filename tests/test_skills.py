@@ -6,7 +6,15 @@ from pathlib import Path
 
 import pytest
 
-from dekk.skills.constants import AGENTS_JSON, AGENTS_MD, CLAUDE_MD, CURSORRULES
+from dekk.skills.constants import (
+    AGENTS_JSON,
+    AGENTS_MD,
+    CLAUDE_MD,
+    CODEX_MD,
+    CURSORRULES,
+    SKILLS_INVENTORY_BEGIN,
+    SKILLS_INVENTORY_END,
+)
 
 # ============================================================================
 # Fixtures
@@ -338,6 +346,70 @@ class TestGenerators:
         # Only name and description in frontmatter (no user-invocable)
         lines_before_close = rendered.split("---\n")[1].strip().split("\n")
         assert len(lines_before_close) == 2
+
+    def test_skills_index_uses_install_directory_name(self, tmp_path: Path) -> None:
+        from dekk.skills.discovery import discover_skills
+        from dekk.skills.generators import render_skills_index
+
+        source = tmp_path / ".agents"
+        skill_dir = source / "skills" / "analysis-triage"
+        skill_dir.mkdir(parents=True)
+        (source / "project.md").write_text("# Demo\n", encoding="utf-8")
+        (skill_dir / "SKILL.md").write_text(
+            "---\n"
+            "name: carts-analysis-triage\n"
+            "description: Use when analysis state is stale\n"
+            "---\n\n"
+            "# Analysis\n",
+            encoding="utf-8",
+        )
+
+        rendered = render_skills_index(discover_skills(source))
+
+        assert "### analysis-triage" in rendered
+        assert "### carts-analysis-triage" not in rendered
+
+    def test_generate_inserts_bounded_skill_inventories(self, project_root: Path) -> None:
+        from dekk.skills.generators import AgentConfigManager
+
+        manager = AgentConfigManager(project_root)
+        manager.generate("all")
+
+        for name in (AGENTS_MD, CLAUDE_MD, CURSORRULES, CODEX_MD):
+            content = (project_root / name).read_text(encoding="utf-8")
+            assert content.count(SKILLS_INVENTORY_BEGIN) == 1
+            assert content.count(SKILLS_INVENTORY_END) == 1
+            assert "| `build` | Build the project. | `.agents/skills/build/SKILL.md` |" in content
+
+        codex = (project_root / CODEX_MD).read_text(encoding="utf-8")
+        assert "Before editing CARTS sources, scan the Skills inventory below" in codex
+
+    def test_stale_skill_inventory_files_detects_corruption(
+        self, project_root: Path,
+    ) -> None:
+        from dekk.skills.discovery import discover_skills
+        from dekk.skills.generators import (
+            AgentConfigManager,
+            stale_skill_inventory_files,
+        )
+
+        manager = AgentConfigManager(project_root)
+        manager.generate("all")
+        skills = discover_skills(project_root / ".agents")
+        assert stale_skill_inventory_files(project_root, ".agents", skills) == []
+
+        agents_md = project_root / AGENTS_MD
+        agents_md.write_text(
+            agents_md.read_text(encoding="utf-8").replace(
+                SKILLS_INVENTORY_BEGIN,
+                "<!-- BEGIN SKILLS INVENTORY BROKEN -->",
+            ),
+            encoding="utf-8",
+        )
+
+        assert stale_skill_inventory_files(project_root, ".agents", skills) == [
+            AGENTS_MD
+        ]
 
 
 # ============================================================================
@@ -1267,6 +1339,87 @@ class TestClaudeHookGeneration:
 
         assert "Regenerate with: dekk demo skills generate" in stub
         assert "agents generate" not in stub
+
+    def test_carts_prompt_skill_hook_is_generated(self, tmp_path: Path) -> None:
+        """CARTS prompt skill suggestions must survive skill regeneration."""
+        import json
+
+        from dekk.environment.spec import EnvironmentSpec, SkillsSpec
+        from dekk.skills.constants import (
+            CLAUDE_HOOKS_DIR,
+            CLAUDE_HOOKS_JSON,
+            CLAUDE_SETTINGS_DIR,
+            CLAUDE_SETTINGS_JSON,
+            SETTINGS_KEY_HOOKS,
+        )
+        from dekk.skills.discovery import SkillDefinition
+        from dekk.skills.providers.base import AgentContext
+        from dekk.skills.providers.claude import (
+            SUGGEST_SKILLS_SCRIPT_NAME,
+            ClaudeCodeAgent,
+        )
+        from dekk.skills.providers.enrichment import compute_enrichment
+
+        source = tmp_path / "carts-plugin"
+        skill_dir = source / "skills" / "check-utils"
+        skill_dir.mkdir(parents=True)
+        skill_file = skill_dir / "SKILL.md"
+        skill_file.write_text(
+            "---\nname: carts-check-utils\ndescription: Use before helpers\n---\n\n# Check\n",
+            encoding="utf-8",
+        )
+        skill = SkillDefinition(
+            source_dir=skill_dir,
+            source_file=skill_file,
+            metadata={
+                "name": "carts-check-utils",
+                "description": "Use before helpers",
+            },
+            body="# Check\n",
+        )
+        env_spec = EnvironmentSpec(
+            project_name="carts",
+            project_description="",
+            tools={},
+            commands={},
+            skills=SkillsSpec(version="0.1.0"),
+        )
+        ctx = AgentContext(
+            project_root=tmp_path,
+            source_dir=source,
+            source_dir_name="carts-plugin",
+            project_name="carts",
+            cli_name="dekk carts",
+            project_content="# carts\n",
+            skills=[skill],
+            rules=[],
+            enrichment=compute_enrichment(env_spec, cli_name="dekk carts"),
+        )
+
+        ClaudeCodeAgent()._generate_enriched(ctx)
+
+        script = source / CLAUDE_HOOKS_DIR / SUGGEST_SKILLS_SCRIPT_NAME
+        assert script.is_file()
+        assert "CARTS source prompt detected" in script.read_text(encoding="utf-8")
+
+        settings = json.loads(
+            (tmp_path / CLAUDE_SETTINGS_DIR / CLAUDE_SETTINGS_JSON).read_text(
+                encoding="utf-8"
+            )
+        )
+        settings_hook = settings[SETTINGS_KEY_HOOKS]["UserPromptSubmit"][0]
+        assert settings_hook["matcher"] == "*"
+        assert settings_hook["hooks"][0]["command"].endswith(
+            f"carts-plugin/{CLAUDE_HOOKS_DIR}/{SUGGEST_SKILLS_SCRIPT_NAME}"
+        )
+
+        plugin_hooks = json.loads(
+            (source / CLAUDE_HOOKS_DIR / CLAUDE_HOOKS_JSON).read_text(encoding="utf-8")
+        )
+        plugin_hook = plugin_hooks[SETTINGS_KEY_HOOKS]["UserPromptSubmit"][0]
+        assert plugin_hook["hooks"][0]["command"] == (
+            f"${{CLAUDE_PLUGIN_ROOT}}/{CLAUDE_HOOKS_DIR}/{SUGGEST_SKILLS_SCRIPT_NAME}"
+        )
 
 
 class TestEndToEnd:

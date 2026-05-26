@@ -68,6 +68,9 @@ CLAUDE_RULES_DIR: Final = ".claude/rules"
 
 # Codex / AGENTS.md
 AGENTS_MD: Final = "AGENTS.md"
+CODEX_MD: Final = "CODEX.md"
+SKILLS_INVENTORY_BEGIN: Final = "<!-- BEGIN SKILLS INVENTORY -->"
+SKILLS_INVENTORY_END: Final = "<!-- END SKILLS INVENTORY -->"
 
 # Cursor
 CURSORRULES: Final = ".cursorrules"
