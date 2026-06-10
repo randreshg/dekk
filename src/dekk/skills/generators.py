@@ -243,14 +243,7 @@ def stale_skill_inventory_files(
         AGENTS_MD: render_skills_inventory(skills, source_dir_name),
         CLAUDE_MD: render_skills_inventory(skills, source_dir_name),
         CURSORRULES: render_skills_inventory(skills, source_dir_name),
-        CODEX_MD: render_skills_inventory(
-            skills,
-            source_dir_name,
-            preamble=(
-                "Before editing CARTS sources, scan the Skills inventory below "
-                "and read the SKILL.md for any whose description matches your task."
-            ),
-        ),
+        CODEX_MD: render_skills_inventory(skills, source_dir_name),
     }
     stale: list[str] = []
     for label, inventory in expected.items():

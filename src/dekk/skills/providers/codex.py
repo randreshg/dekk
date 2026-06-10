@@ -66,14 +66,7 @@ class CodexAgent(DekkAgent):
             if codex_path.is_file()
             else content
         )
-        codex_inventory = render_skills_inventory(
-            context.skills,
-            context.source_dir_name,
-            preamble=(
-                "Before editing CARTS sources, scan the Skills inventory below "
-                "and read the SKILL.md for any whose description matches your task."
-            ),
-        )
+        codex_inventory = render_skills_inventory(context.skills, context.source_dir_name)
         codex_path.write_text(
             update_skills_inventory_section(codex_content, codex_inventory),
             encoding="utf-8",

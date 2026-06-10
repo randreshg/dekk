@@ -382,7 +382,8 @@ class TestGenerators:
             assert "| `build` | Build the project. | `.agents/skills/build/SKILL.md` |" in content
 
         codex = (project_root / CODEX_MD).read_text(encoding="utf-8")
-        assert "Before editing CARTS sources, scan the Skills inventory below" in codex
+        assert "Before editing CARTS sources" not in codex
+        assert "| `build` | Build the project. | `.agents/skills/build/SKILL.md` |" in codex
 
     def test_stale_skill_inventory_files_detects_corruption(
         self, project_root: Path,
