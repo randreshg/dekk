@@ -50,67 +50,15 @@ from dekk.skills.providers.shared import remove_file
 
 _BUILTIN_TARGETS: frozenset[str] = frozenset({TARGET_ALL, *ALL_TARGETS})
 
-_INVENTORY_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    (
-        "Session lifecycle",
-        (
-            "carts-session-start",
-            "carts-commit",
-            "carts-review",
-            "carts-simplify",
-            "carts-finishing",
-        ),
-    ),
-    (
-        "Discovery + placement",
-        (
-            "carts-find-utils",
-            "check-utils",
-            "refactor-utils",
-            "carts-include-tier",
-            "carts-attr-consolidation",
-            "carts-dialect-map",
-            "carts-pipeline-map",
-        ),
-    ),
-    (
-        "Building + running",
-        (
-            "build",
-            "carts-cli",
-            "test",
-            "create-test",
-            "contract-refresh",
-            "carts-local-examples",
-            "carts-multinode-examples",
-            "benchmark",
-        ),
-    ),
-    (
-        "Triage",
-        (
-            "carts-debug",
-            "debug",
-            "analysis-triage",
-            "miscompile-triage",
-            "runtime-triage",
-            "distributed-triage",
-            "benchmark-triage",
-            "heuristic-explain",
-            "reproducer",
-            "stage-diff",
-            "dialect-trace",
-            "runtime-first",
-        ),
-    ),
-    (
-        "Authoring + maintenance",
-        (
-            "pass-dev",
-            "carts-agentic-development",
-            "carts-skill-maintenance",
-        ),
-    ),
+# Preferred display order for skill inventory groups (from each skill's
+# `group:` frontmatter). Unlisted groups sort alphabetically after these;
+# the implicit "Other" group (skills with no group) always sorts last.
+_GROUP_ORDER: tuple[str, ...] = (
+    "Lifecycle",
+    "Domain",
+    "Orchestration",
+    "Evaluation",
+    "Operations",
 )
 
 
@@ -157,10 +105,6 @@ def render_skills_inventory(
     preamble: str | None = None,
 ) -> str:
     """Render the deterministic cross-runtime skill inventory section."""
-    by_lookup = {_skill_lookup_name(skill): skill for skill in skills}
-    by_frontmatter = {skill.name: skill for skill in skills}
-    emitted: set[str] = set()
-
     lines = [
         SKILLS_INVENTORY_BEGIN,
         "## Available Skills",
@@ -169,44 +113,28 @@ def render_skills_inventory(
     if preamble:
         lines.extend([preamble, ""])
 
-    for title, names in _INVENTORY_GROUPS:
-        grouped: list[SkillDefinition] = []
-        for name in names:
-            skill = by_lookup.get(name) or by_frontmatter.get(name)
-            lookup_name = _skill_lookup_name(skill) if skill else ""
-            if skill and lookup_name not in emitted:
-                grouped.append(skill)
-                emitted.add(lookup_name)
-        if not grouped:
-            continue
+    # Group skills by their `group:` frontmatter (data-driven). Groups in
+    # _GROUP_ORDER come first in that order; any other groups follow
+    # alphabetically; the implicit "Other" group (no group set) is always last.
+    groups: dict[str, list[SkillDefinition]] = {}
+    for skill in skills:
+        groups.setdefault(skill.group, []).append(skill)
+
+    def _group_sort_key(name: str) -> tuple[int, object]:
+        if name == "Other":
+            return (2, "")
+        if name in _GROUP_ORDER:
+            return (0, _GROUP_ORDER.index(name))
+        return (1, name.lower())
+
+    for title in sorted(groups, key=_group_sort_key):
         lines.extend([
             f"### {title}",
             "",
             "| Skill | Description | Path |",
             "| --- | --- | --- |",
         ])
-        for skill in grouped:
-            lines.append(
-                "| "
-                f"`{_escape_table_cell(_skill_lookup_name(skill))}` | "
-                f"{_escape_table_cell(skill.description.rstrip('.'))}. | "
-                f"`{_escape_table_cell(_skill_path(skill, source_dir_name))}` |"
-            )
-        lines.append("")
-
-    remaining = [
-        skill
-        for skill in sorted(skills, key=_skill_sort_key)
-        if _skill_lookup_name(skill) not in emitted
-    ]
-    if remaining:
-        lines.extend([
-            "### Other",
-            "",
-            "| Skill | Description | Path |",
-            "| --- | --- | --- |",
-        ])
-        for skill in remaining:
+        for skill in sorted(groups[title], key=_skill_sort_key):
             lines.append(
                 "| "
                 f"`{_escape_table_cell(_skill_lookup_name(skill))}` | "

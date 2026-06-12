@@ -82,6 +82,11 @@ class SkillDefinition:
         return self.metadata[REQUIRED_SKILL_FIELDS[1]]
 
     @property
+    def group(self) -> str:
+        """Inventory group from the optional ``group:`` frontmatter field."""
+        return (self.metadata.get("group") or "").strip() or "Other"
+
+    @property
     def relative_install_path(self) -> Path:
         """Relative path from the skills parent dir, for hierarchical install."""
         return self.source_dir.relative_to(self.source_dir.parent)
