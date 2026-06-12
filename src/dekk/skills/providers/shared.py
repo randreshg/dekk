@@ -36,6 +36,17 @@ def install_skills_to_dir(
 
         installed.append(skill.name)
 
+    # Copy the shared-rules dir alongside the skills so the `Load
+    # _shared/<rule>.md` pointers in each SKILL.md resolve from the
+    # generated surface, not just from the .agents source.
+    if skills:
+        shared_src = skills[0].source_dir.parent / "_shared"
+        if shared_src.is_dir():
+            shared_dest = target_dir / "_shared"
+            if shared_dest.exists():
+                shutil.rmtree(shared_dest)
+            shutil.copytree(shared_src, shared_dest)
+
     return installed
 
 
