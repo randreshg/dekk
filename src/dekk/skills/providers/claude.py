@@ -455,7 +455,7 @@ class ClaudeCodeAgent(DekkAgent):
             }
 
             add_skill check-utils "utility/helper placement before CARTS source edits"
-            add_skill carts-dialect-map "SDE/CODIR/ARTS/ARTS-RT ownership boundaries"
+            add_skill carts-dialect-map "SDE/ARTS/ARTS-RT ownership boundaries"
 
             if matches 'attr|attribute|attrnames|tablegen|\\.td|ods|getattr|setattr'; then
               add_skill carts-attr-consolidation "ODS-first attribute and enum consolidation rules"
