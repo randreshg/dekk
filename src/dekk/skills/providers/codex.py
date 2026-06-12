@@ -61,14 +61,9 @@ class CodexAgent(DekkAgent):
         )
 
         codex_path = context.project_root / CODEX_MD
-        codex_content = (
-            codex_path.read_text(encoding="utf-8")
-            if codex_path.is_file()
-            else content
-        )
         codex_inventory = render_skills_inventory(context.skills, context.source_dir_name)
         codex_path.write_text(
-            update_skills_inventory_section(codex_content, codex_inventory),
+            update_skills_inventory_section(content, codex_inventory),
             encoding="utf-8",
         )
         results = [AGENTS_MD, CODEX_MD]
