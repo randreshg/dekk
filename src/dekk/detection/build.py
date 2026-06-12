@@ -903,5 +903,3 @@ class BuildSystemDetector:
             root=root,
             config_file=dune_project,
         )
-
-    # --- Utility methods kept for subclass compat; delegate to _compat ---
