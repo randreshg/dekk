@@ -18,7 +18,6 @@ from .scaffold import (
     SetupScript,
     SetupScriptBuilder,
     SetupStep,
-    TemplateRegistry,
     TemplateSet,
 )
 from .version_managers import ManagedVersion, VersionManagerDetector, VersionManagerInfo
@@ -65,7 +64,6 @@ __all__ = [
     "SetupScriptBuilder",
     "SetupStep",
     "SubProject",
-    "TemplateRegistry",
     "TemplateSet",
     "ToolChecker",
     "ToolchainInfo",

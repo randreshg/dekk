@@ -167,14 +167,6 @@ _MODULE_ATTRS: dict[str, list[str]] = {
     ],
     # -- Library Paths --
     "dekk.detection.libpath": ["LibraryPathInfo", "LibraryPathResolver"],
-    # -- Commands --
-    "dekk.core.commands": [
-        "CommandStatus",
-        "CommandMeta",
-        "CommandProvider",
-        "CommandRegistry",
-        "command",
-    ],
     # -- Validation --
     "dekk.diagnostics.validate": [
         "CheckStatus",
@@ -199,7 +191,6 @@ _MODULE_ATTRS: dict[str, list[str]] = {
         "ProjectTypeDetector",
         "FileTemplate",
         "TemplateSet",
-        "TemplateRegistry",
         "SetupStep",
         "SetupScript",
         "SetupScriptBuilder",

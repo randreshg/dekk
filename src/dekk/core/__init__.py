@@ -3,13 +3,6 @@
 Re-exports all public symbols so that ``from dekk.core import Version`` works.
 """
 
-from dekk.core.commands import (
-    CommandMeta,
-    CommandProvider,
-    CommandRegistry,
-    CommandStatus,
-    command,
-)
 from dekk.core.config import ConfigManager, ConfigReconciler, ConfigSource
 from dekk.core.context import (
     ContextDiff,
@@ -44,11 +37,6 @@ from dekk.core.version import (
 
 __all__ = [
     # commands
-    "CommandMeta",
-    "CommandProvider",
-    "CommandRegistry",
-    "CommandStatus",
-    "command",
     # config
     "ConfigManager",
     "ConfigReconciler",

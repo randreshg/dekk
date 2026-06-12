@@ -15,7 +15,6 @@ from dekk.detection.scaffold import (
     SetupScript,
     SetupScriptBuilder,
     SetupStep,
-    TemplateRegistry,
     TemplateSet,
 )
 
@@ -198,46 +197,6 @@ def test_project_type_and_templates_expose_derived_properties():
     assert template.file_count == 2
     assert template.paths == ("setup.py", "README.md")
     assert "cli" in template.tags
-
-
-def test_template_registry_merges_builtin_and_provider_results():
-    class RustProvider:
-        def get_templates(self, language, framework=ProjectFramework.NONE):
-            if language is ProjectLanguage.RUST:
-                return [
-                    TemplateSet(
-                        name="rust-wasm", description="Rust WASM", language=ProjectLanguage.RUST
-                    )
-                ]
-            return []
-
-    registry = TemplateRegistry()
-    registry.register_template_set(
-        TemplateSet(
-            name="python-generic",
-            description="Generic Python",
-            language=ProjectLanguage.PYTHON,
-        )
-    )
-    registry.register_template_set(
-        TemplateSet(
-            name="python-django",
-            description="Django",
-            language=ProjectLanguage.PYTHON,
-            framework=ProjectFramework.DJANGO,
-            tags=("web",),
-        )
-    )
-    registry.register_provider(RustProvider())
-
-    python_results = registry.find(ProjectLanguage.PYTHON, ProjectFramework.DJANGO)
-    rust_results = registry.find(ProjectLanguage.RUST)
-    tag_results = registry.find_by_tag("web")
-
-    assert {template.name for template in python_results} == {"python-generic", "python-django"}
-    assert [template.name for template in rust_results] == ["rust-wasm"]
-    assert [template.name for template in tag_results] == ["python-django"]
-    assert len(registry.all_templates) == 2
 
 
 def test_setup_script_derived_views_and_shell_rendering():

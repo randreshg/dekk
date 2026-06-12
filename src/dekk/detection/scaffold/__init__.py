@@ -14,8 +14,6 @@ from dekk.detection.scaffold.detector import (
 from dekk.detection.scaffold.setup import SetupScript, SetupScriptBuilder, SetupStep
 from dekk.detection.scaffold.templates import (
     FileTemplate,
-    TemplateProvider,
-    TemplateRegistry,
     TemplateSet,
 )
 
@@ -33,7 +31,5 @@ __all__ = [
     "SetupScriptBuilder",
     "SetupStep",
     "TEST_DIR_NAMES",
-    "TemplateProvider",
-    "TemplateRegistry",
     "TemplateSet",
 ]
